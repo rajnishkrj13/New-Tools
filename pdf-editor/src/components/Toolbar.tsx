@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import {
   Check, Circle, Download, Eraser, EyeOff, FileText, FolderOpen, Highlighter, ImagePlus, Maximize, Minus, MousePointer2, MoveHorizontal,
-  MoveUpRight, PaintBucket, Pencil, Redo2, Shapes, Signature, Square, Strikethrough, TextCursorInput, Type, Underline, Undo2, Upload, ZoomIn, ZoomOut,
+  MoveUpRight, PaintBucket, Pencil, Redo2, Shapes, Signature, Square, Strikethrough, Table, TextCursorInput, Type, Underline, Undo2, Upload, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import type { Tool } from '../types/editor';
 import { SHAPE_TOOLS } from '../types/editor';
@@ -11,6 +11,7 @@ import { listFonts, registerCustomFont } from '../engines/FontManager';
 import { applyChanges, downloadPdf } from '../hooks/useExport';
 import { insertImageFile, openPdfFile } from '../hooks/usePdfDocument';
 import { getState, useEditorStore } from '../store/documentStore';
+import { insertTable } from '../store/imageActions';
 
 function ToolButton(props: { icon: React.ReactNode; label: string; active?: boolean; disabled?: boolean; onClick: () => void; title?: string }) {
   return (
@@ -308,6 +309,7 @@ export function Toolbar() {
           <ToolButton icon={<ImagePlus size={18} />} label="Add Image" onClick={() => imageInput.current?.click()} />
           <ToolButton icon={<Eraser size={18} />} label="Whiteout" active={tool === 'whiteout' || tool === 'redact'} onClick={pick(tool === 'redact' ? 'redact' : 'whiteout')} />
           <ToolButton icon={<Pencil size={18} />} label="Draw" active={tool === 'draw' || tool === 'eraser'} onClick={pick(tool === 'eraser' ? 'eraser' : 'draw')} />
+          <ToolButton icon={<Table size={18} />} label="Table" title="Insert a table on the current page" onClick={() => insertTable()} />
           <ToolButton icon={<Signature size={18} />} label="Signature" onClick={() => s.setSignatureOpen(true)} />
           <ToolButton icon={<Shapes size={18} />} label="Shapes" active={SHAPE_TOOLS.includes(tool)} onClick={pick(SHAPE_TOOLS.includes(tool) ? tool : lastShape)} />
           <Divider />

@@ -5,6 +5,7 @@ import { insertImageFile } from '../hooks/usePdfDocument';
 import { useEditorStore } from '../store/documentStore';
 import { IMAGE_TYPES } from '../utils/validationUtils';
 import { InlineTextEditor } from './InlineTextEditor';
+import { TableCellEditor } from './TableCellEditor';
 import { ObjectLayer } from './ObjectLayer';
 import { TextEditLayer } from './TextEditor';
 
@@ -21,6 +22,11 @@ export const PdfPage = memo(function PdfPage({ page }: { page: PageInfo }) {
     const o = s.editingTextId ? s.objects.find((x) => x.id === s.editingTextId) : undefined;
     return o && o.type === 'text' && o.pageIndex === page.index ? o : null;
   });
+  const cellTable = useEditorStore((s) => {
+    const o = s.editingCell ? s.objects.find((x) => x.id === s.editingCell!.id) : undefined;
+    return o && o.type === 'table' && o.pageIndex === page.index ? o : null;
+  });
+  const editingCell = useEditorStore((s) => s.editingCell);
   const isNew = useEditorStore((s) => s.draftText?.pageIndex === page.index);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,6 +132,9 @@ export const PdfPage = memo(function PdfPage({ page }: { page: PageInfo }) {
       {visible && <ObjectLayer page={page} />}
       {visible && tool === 'edittext' && <TextEditLayer page={page} />}
       {editing && <InlineTextEditor key={editing.id} obj={editing} isNew={!!isNew} />}
+      {cellTable && editingCell && (
+        <TableCellEditor key={`${editingCell.id}:${editingCell.row}:${editingCell.col}`} table={cellTable} row={editingCell.row} col={editingCell.col} />
+      )}
     </div>
   );
 });

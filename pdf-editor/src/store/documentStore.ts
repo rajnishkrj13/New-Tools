@@ -48,6 +48,9 @@ interface EditorState {
   /** A new text box that is being typed and is not part of the document yet. */
   draftText: TextObject | null;
   setDraftText: (o: TextObject | null) => void;
+  /** The table cell that is being typed. */
+  editingCell: { id: string; row: number; col: number } | null;
+  setEditingCell: (cell: { id: string; row: number; col: number } | null) => void;
   textSel: TextSelection | null;
   tool: Tool;
   lastShape: Tool;
@@ -148,6 +151,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editingTextId: null,
   draftText: null,
   setDraftText: (draftText) => set({ draftText }),
+  editingCell: null,
+  setEditingCell: (editingCell) => set({ editingCell }),
   textSel: null,
   tool: 'select',
   lastShape: 'rect',
@@ -166,14 +171,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({
       doc, pages, bytes, docKey: s.docKey + 1, loading: null, error: null,
       objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false, lastExport: null, exportState: idleExport,
-      selectedId: null, editingTextId: null, draftText: null, textSel: null, tool: 'select', currentPage: 0, scrollRequest: null,
+      selectedId: null, editingTextId: null, editingCell: null, draftText: null, textSel: null, tool: 'select', currentPage: 0, scrollRequest: null,
     }));
   },
   closeDocument: () => {
     Object.values(get().assets).forEach((a) => URL.revokeObjectURL(a.url));
     set({
       doc: null, pages: [], bytes: null, objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false,
-      lastExport: null, selectedId: null, editingTextId: null, textSel: null, tool: 'select',
+      lastExport: null, selectedId: null, editingTextId: null, editingCell: null, textSel: null, tool: 'select',
     });
   },
   setLoading: (loading) => set({ loading }),

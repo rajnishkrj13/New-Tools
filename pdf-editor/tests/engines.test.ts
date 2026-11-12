@@ -8,6 +8,7 @@ import type { EditorObject, HighlightObject, ImageAsset } from '../src/types/obj
 import type { TextLine } from '../src/types/text';
 import { markShapes, marksForBox, rotateMark } from '../src/engines/TextHighlighter';
 import { analyzeImageOps, removeImageOps } from '../src/engines/PdfImages';
+import { CELL_PAD, cellAt, layoutTable, newTable, resizeTable, setColumnShare } from '../src/engines/TableLayout';
 import type { Matrix, PageInfo } from '../src/types/pdf';
 import { applyMatrix, computeViewTransform, invert, makePageInfo, mul, viewRectToPdfRect } from '../src/engines/CoordinateMapper';
 import { exportPdf, ExportError, pageInfoFromPdfLib } from '../src/engines/PdfExporter';
@@ -693,5 +694,62 @@ describe('PdfImages', () => {
     expect(out).not.toContain('/Im2');
     expect(out.length).toBe(content.length);
     expect(removeImageOps(content, isImage, [{ seq: 0, total: 3 }])).toBeNull();
+  });
+});
+
+describe('TableLayout', () => {
+  const style = { fontFamily: 'Helvetica', fontSize: 10, bold: false, italic: false, underline: false, color: '#111827', align: 'left' as const, opacity: 1 };
+  const make = () => newTable({ id: 't', pageIndex: 0, x: 100, y: 200, width: 300 }, 3, 3, style);
+
+  it('splits the width by column shares and grows a row for wrapped text', () => {
+    const empty = make();
+    const base = layoutTable(empty);
+    expect(base.colX.map(Math.round)).toEqual([0, 100, 200, 300]);
+    expect(base.rowY).toHaveLength(4);
+    expect(base.height).toBeCloseTo(empty.height, 5);
+
+    const long = 'This sentence is far too long for one line of a narrow table cell';
+    const filled = { ...empty, cells: [['Item', 'Qty', 'Price'], [long, '4', '120.00'], ['', '', '']] };
+    const layout = layoutTable(filled);
+    const tall = layout.cells.find((c) => c.row === 1 && c.col === 0)!;
+    expect(tall.runs.length).toBeGreaterThan(2);
+    expect(tall.runs.every((r) => r.x >= CELL_PAD && r.x + r.width <= 100 - CELL_PAD + 0.01)).toBe(true);
+    expect(layout.rowY[2] - layout.rowY[1]).toBeGreaterThan(base.rowY[2] - base.rowY[1]);
+    expect(layout.rowY[1]).toBeCloseTo(base.rowY[1], 5); // the header row did not change
+    expect(layout.cells.find((c) => c.row === 0 && c.col === 0)!.style.bold).toBe(true);
+    expect(cellAt(layout, 150, layout.rowY[1] + 2)).toEqual({ row: 1, col: 1 });
+    expect(cellAt(layout, 299, layout.height - 1)).toEqual({ row: 2, col: 2 });
+    expect(cellAt(layout, 301, 5)).toBeNull();
+  });
+
+  it('adds and removes rows and columns, keeping text, and resizes one column', () => {
+    const t = { ...make(), cells: [['a', 'b', 'c'], ['d', 'e', 'f'], ['g', 'h', 'i']] };
+    const bigger = resizeTable(t, 4, 4);
+    expect(bigger.cells).toHaveLength(4);
+    expect(bigger.cells[1]).toEqual(['d', 'e', 'f', '']);
+    expect(bigger.height).toBeCloseTo((t.height * 4) / 3, 5);
+    expect(bigger.colW.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+    expect(resizeTable(t, 2, 2).cells).toEqual([['a', 'b'], ['d', 'e']]);
+    const wide = setColumnShare(t, 0, 0.5);
+    expect(wide.colW[0]).toBeCloseTo(0.5, 9);
+    expect(wide.colW[1]).toBeCloseTo(0.25, 9);
+    expect(wide.colW.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 9);
+  });
+
+  it.runIf(existsSync(SAMPLE))('exports a table with its text inside the cells', async () => {
+    const bytes = new Uint8Array(readFileSync(SAMPLE));
+    const pages = (await PDFDocument.load(bytes)).getPages().map((p, i) => pageInfoFromPdfLib(p, i));
+    const table: EditorObject = { ...make(), cells: [['Item', 'Qty', 'Price'], ['Widget', '4', '120.00'], ['Total', '', '480.00']] };
+    const result = await exportPdf({ bytes, pages, objects: [table], assets: {} });
+    expect(result.objectsWritten).toBe(1);
+    const { items } = await viewItems(await openWithPdfJs(result.bytes), 1);
+    const layout = layoutTable(table as any);
+    for (const [str, row, col] of [['Item', 0, 0], ['Qty', 0, 1], ['120.00', 1, 2], ['Total', 2, 0]] as const) {
+      const hit = items.find((i) => i.str === str);
+      expect(hit, str).toBeTruthy();
+      expect(hit!.x).toBeCloseTo(100 + layout.colX[col] + CELL_PAD, 1);
+      expect(hit!.baseline).toBeGreaterThan(200 + layout.rowY[row]);
+      expect(hit!.baseline).toBeLessThan(200 + layout.rowY[row + 1]);
+    }
   });
 });

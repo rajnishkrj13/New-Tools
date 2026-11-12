@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Konva from 'konva';
 import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Transformer } from 'react-konva';
 import { isPageEdit } from '../types/objects';
-import type { EditorObject, ImageObject, TextEditObject, TextStyle } from '../types/objects';
+import type { EditorObject, ImageObject, TableObject, TextEditObject, TextStyle } from '../types/objects';
 import type { PageImage } from '../engines/PdfImages';
 import type { PageInfo } from '../types/pdf';
 import { arrowHeadSize } from '../engines/PdfExporter';
@@ -10,6 +10,7 @@ import { findPageImages, getPdfPage } from '../engines/PdfRenderer';
 import { getCachedTextModel, loadTextModel } from '../engines/PdfTextExtractor';
 import { MARK_OPACITY, markForArea, markShapes, marksForBox } from '../engines/TextHighlighter';
 import { layoutTextEdit, layoutTextObject, type TextRun } from '../engines/TextEditLayout';
+import { cellAt, layoutTable } from '../engines/TableLayout';
 import { getState, useEditorStore } from '../store/documentStore';
 import { liftPageImage, moveObjectToPage } from '../store/imageActions';
 import { cssFont } from '../utils/fontUtils';
@@ -35,6 +36,37 @@ function drawRuns(context: Konva.Context, runs: TextRun[], style: TextStyle) {
       c.fillRect(r.x, r.baseline + r.fontSize * 0.11 - t / 2, r.width, t);
     }
   }
+}
+
+/** Draws a table exactly as the exporter does: header fill, grid lines, then the text of every cell. */
+function drawTable(context: Konva.Context, o: TableObject, skip: { row: number; col: number } | null) {
+  const c = (context as any)._context as CanvasRenderingContext2D;
+  const layout = layoutTable(o);
+  if (o.fill) {
+    c.fillStyle = o.fill;
+    c.fillRect(0, 0, layout.width, layout.height);
+  }
+  if (o.headerRow) {
+    c.fillStyle = o.headerFill;
+    c.fillRect(0, 0, layout.width, layout.rowY[1]);
+  }
+  if (o.borderWidth > 0) {
+    c.strokeStyle = o.borderColor;
+    c.lineWidth = o.borderWidth;
+    c.lineCap = 'square';
+    c.beginPath();
+    for (const x of layout.colX) {
+      c.moveTo(x, 0);
+      c.lineTo(x, layout.height);
+    }
+    for (const y of layout.rowY) {
+      c.moveTo(0, y);
+      c.lineTo(layout.width, y);
+    }
+    c.stroke();
+  }
+  // The cell that is being typed is shown by its text field.
+  for (const cell of layout.cells) if (!(skip && skip.row === cell.row && skip.col === cell.col)) drawRuns(context, cell.runs, cell.style);
 }
 
 function useHtmlImage(url?: string) {
@@ -107,6 +139,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   const selectedId = useEditorStore((s) => s.selectedId);
   const editingTextId = useEditorStore((s) => s.editingTextId);
   const fontVersion = useEditorStore((s) => s.fontVersion);
+  const editingCell = useEditorStore((s) => s.editingCell);
   const all = useEditorStore((s) => s.objects);
   const objects = useMemo(() => all.filter((o) => o.pageIndex === page.index), [all, page.index]);
 
@@ -312,6 +345,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
         const patch: Record<string, number> = { x: node.x(), y: node.y(), width: Math.max(4, o.width * sx) };
         if (o.type !== 'whiteout' && o.type !== 'redact') patch.rotation = node.rotation();
         if ('height' in o) patch.height = Math.max(4, o.height * sy);
+        if (o.type === 'table') patch.width = Math.max(o.colW.length * 12, o.width * sx);
         getState().updateObject(o.id, patch as Partial<EditorObject>);
       },
     };
@@ -343,6 +377,30 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
             }}
             onDblClick={() => getState().setEditingText(o.id)}
             onDblTap={() => getState().setEditingText(o.id)}
+            {...props}
+          />
+        );
+      }
+      case 'table': {
+        const layout = layoutTable(o);
+        const openCell = (e: Konva.KonvaEventObject<Event>) => {
+          const p = e.target.getRelativePointerPosition();
+          const cell = p && cellAt(layout, p.x, p.y);
+          if (cell) getState().setEditingCell({ id: o.id, ...cell });
+        };
+        return (
+          <Shape
+            key={`${o.id}:${fontVersion}`}
+            x={o.x} y={o.y} width={o.width} height={layout.height} rotation={o.rotation}
+            sceneFunc={(ctx) => drawTable(ctx, o, editingCell?.id === o.id ? editingCell : null)}
+            hitFunc={(ctx, shape) => {
+              ctx.beginPath();
+              ctx.rect(0, 0, shape.width(), shape.height());
+              ctx.closePath();
+              ctx.fillStrokeShape(shape);
+            }}
+            onDblClick={openCell}
+            onDblTap={openCell}
             {...props}
           />
         );

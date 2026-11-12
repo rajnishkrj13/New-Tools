@@ -79,6 +79,31 @@ export interface MaskObject extends BaseObject {
   fill: string;
 }
 
+/**
+ * A table added by the user. x/y is the top-left corner. `colW` and `rowH` are shares of the
+ * width and height (each sums to 1); a row grows when its text needs more room.
+ */
+export interface TableObject extends BaseObject {
+  type: 'table';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  /** Text of every cell, by row then column. */
+  cells: string[][];
+  colW: number[];
+  rowH: number[];
+  style: TextStyle;
+  /** The first row is a header: bold on a filled background. */
+  headerRow: boolean;
+  headerFill: string;
+  /** Background of the cells; null lets the page show through. */
+  fill: string | null;
+  borderColor: string;
+  borderWidth: number;
+}
+
 export type MarkMode = 'highlight' | 'underline' | 'strike';
 
 /** Band of one marked text line in view space; `base` is the baseline measured from `y`. */
@@ -167,6 +192,7 @@ export type EditorObject =
   | PathObject
   | MaskObject
   | HighlightObject
+  | TableObject
   | ImageCutObject
   | TextEditObject;
 

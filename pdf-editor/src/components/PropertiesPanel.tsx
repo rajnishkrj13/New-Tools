@@ -9,6 +9,7 @@ import { getState, useEditorStore } from '../store/documentStore';
 import { findTextEdit, revertParagraph, styleParagraph } from '../store/textEditActions';
 import { moveObjectToPage, replaceImage } from '../store/imageActions';
 import { isPageEdit } from '../types/objects';
+import { layoutTable, resizeTable, setColumnShare } from '../engines/TableLayout';
 import { IconToggle } from './FloatingTextToolbar';
 import { paragraphStyle } from './TextEditor';
 
@@ -126,7 +127,7 @@ function Actions({ o }: { o: EditorObject }) {
 
 const TITLES: Record<string, string> = {
   text: 'Text box', image: 'Image', rect: 'Rectangle', ellipse: 'Circle', line: 'Line', arrow: 'Arrow', path: 'Drawing',
-  whiteout: 'Whiteout', redact: 'Secure redaction', highlight: 'Text mark',
+  whiteout: 'Whiteout', redact: 'Secure redaction', highlight: 'Text mark', table: 'Table',
 };
 
 function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }> }) {
@@ -156,6 +157,37 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
           </label>
           <p className="text-[11px] leading-snug text-slate-500">Drag to move it, also onto another page. Corner handles resize, the top handle rotates.</p>
         </Section>
+      )}
+      {o.type === 'table' && (
+        <>
+          <Section title="Table">
+            <Num label="Rows" value={o.cells.length} min={1} max={60} suffix="" onChange={(v) => Number.isInteger(v) && update(resizeTable(o, v, o.colW.length), 'rows')} />
+            <Num label="Columns" value={o.colW.length} min={1} max={12} suffix="" onChange={(v) => Number.isInteger(v) && update(resizeTable(o, o.cells.length, v), 'cols')} />
+            <label className="flex items-center justify-between text-xs text-slate-600">
+              <span>Header row</span>
+              <input type="checkbox" checked={o.headerRow} onChange={(e) => update({ headerRow: e.target.checked }, 'header')} />
+            </label>
+            {o.headerRow && <Color label="Header color" value={o.headerFill} onChange={(v) => update({ headerFill: v }, 'headerFill')} />}
+            <label className="flex items-center justify-between text-xs text-slate-600">
+              <span>Background</span>
+              <input type="checkbox" checked={o.fill != null} onChange={(e) => update({ fill: e.target.checked ? '#ffffff' : null }, 'fillOn')} />
+            </label>
+            {o.fill != null && <Color label="Background color" value={o.fill} onChange={(v) => update({ fill: v }, 'fill')} />}
+            <Color label="Line color" value={o.borderColor} onChange={(v) => update({ borderColor: v }, 'border')} />
+            <Num label="Line width" value={o.borderWidth} min={0} max={6} step={0.25} onChange={(v) => update({ borderWidth: v }, 'bw')} />
+            <p className="text-[11px] leading-snug text-slate-500">Double-click a cell to type in it. Tab moves to the next cell and adds a row after the last one.</p>
+          </Section>
+          {o.colW.length > 1 && (
+            <Section title="Column widths">
+              {o.colW.map((w, i) => (
+                <Num key={i} label={`Column ${i + 1}`} value={w * 100} min={3} max={97} suffix="%" onChange={(v) => update(setColumnShare(o, i, v / 100), `col${i}`)} />
+              ))}
+            </Section>
+          )}
+          <Section title="Text">
+            <TextControls style={o.style} onChange={(patch, key) => update({ style: { ...o.style, ...patch } }, key)} />
+          </Section>
+        </>
       )}
       {o.type === 'text' && (
         <Section title="Text">
@@ -239,7 +271,7 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
           {o.type !== 'text' && (
             <Num
               label="Height"
-              value={o.height}
+              value={o.type === 'table' ? layoutTable(o).height : o.height}
               min={2}
               onChange={(v) => update(o.type === 'image' && o.keepRatio ? { height: v, width: (v * o.width) / o.height } : { height: v }, 'h')}
             />

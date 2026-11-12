@@ -4,6 +4,7 @@ import type { PageImage } from '../engines/PdfImages';
 import { extractPageImage } from '../engines/PdfRenderer';
 import { samplePageColors } from '../utils/canvasUtils';
 import { importImageFile, newId } from '../utils/imageUtils';
+import { newTable } from '../engines/TableLayout';
 import { getState } from './documentStore';
 
 /**
@@ -87,4 +88,18 @@ export function moveObjectToPage(id: string, pageIndex: number, dx = 0, dy = 0) 
   }
   s.updateObject(id, patch);
   getState().select(id);
+}
+
+/** Adds an empty table to the middle of the current page and opens its first cell for typing. */
+export function insertTable(rows = 3, cols = 3) {
+  const s = getState();
+  const page = s.pages[s.currentPage];
+  if (!page) return;
+  const width = Math.min(420, page.width - 72);
+  const style = { ...s.toolStyle.text, fontSize: Math.min(s.toolStyle.text.fontSize, 11), align: 'left' as const, underline: false, opacity: 1 };
+  const table = newTable({ id: newId(), pageIndex: s.currentPage, x: (page.width - width) / 2, y: page.height * 0.3, width }, rows, cols, style);
+  s.setTool('select');
+  s.addObject(table);
+  s.goToPage(s.currentPage);
+  getState().setEditingCell({ id: table.id, row: 0, col: 0 });
 }

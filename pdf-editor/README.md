@@ -23,7 +23,7 @@ The production build adds a Content-Security-Policy that blocks connections to o
 
 ```bash
 npm run make-samples   # writes test-assets/sample.pdf (5 pages) and sample-images.pdf (pictures)
-npm test               # 30 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools, text marks, pictures
+npm test               # 33 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools, text marks, pictures, tables
 npm run typecheck
 ```
 
@@ -69,6 +69,20 @@ highlight, underline and strikethrough and sets the color.
   again as JPEG (or PNG when it has transparency or is small).
 - On screen the old place of a picture is covered with the paper colour, which also hides
   anything the page drew on top of it; the exported file keeps that content.
+
+## Tables
+
+The **Table** button adds a 3 x 3 table to the current page and opens its first cell.
+
+- Double-click a cell to type in it. Tab and Shift+Tab move between cells; Tab in the last
+  cell adds a row. Text wraps inside its cell and the row grows with it.
+- The properties panel sets rows, columns, column widths, header row, background, line
+  colour and width, and the font. The table is moved, resized and rotated like an image.
+- It is saved as real text and vector lines (`src/engines/TableLayout.ts`), so the text
+  stays selectable and searchable.
+- One font, size and alignment apply to the whole table; cells cannot be merged.
+- Tables that are already in a PDF are not recognised as tables: change their text with
+  Edit Text.
 
 ## Auto-save
 

@@ -40,6 +40,7 @@ import { isPageEdit } from '../types/objects';
 import type { EditorObject, ImageAsset, ImageCutObject, TextEditObject, TextStyle } from '../types/objects';
 import { markShapes } from './TextHighlighter';
 import { removeImageOps } from './PdfImages';
+import { layoutTable } from './TableLayout';
 import type { Matrix, PageInfo, Rect } from '../types/pdf';
 import { FLIP_Y, computeViewTransform, invert, makePageInfo, mul, rotateDeg, translate } from './CoordinateMapper';
 import { FALLBACK_FONT_ID, getFont, hasBundledFont, loadBundledFont } from './FontManager';
@@ -448,6 +449,26 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
           const base = mul(translate(o.x, o.y), rotateDeg(o.rotation));
           const pieces = await Promise.all(layout.lines.map((l) => piecesFor(l.text, o, pageIndex)));
           if (pieces.every(Boolean)) layout.lines.forEach((line, k) => line.text.trim() && drawRun(base, line, pieces[k]!, o));
+          break;
+        }
+        case 'table': {
+          const layout = layoutTable(o);
+          const h = layout.height;
+          // Local frame with the origin at the table's bottom-left corner and y pointing up.
+          inView(boxFrame({ x: o.x, y: o.y, height: h, rotation: o.rotation }), () => {
+            if (o.fill) page.drawRectangle({ x: 0, y: 0, width: layout.width, height: h, color: hexToRgb(o.fill) });
+            if (o.headerRow) page.drawRectangle({ x: 0, y: h - layout.rowY[1], width: layout.width, height: layout.rowY[1], color: hexToRgb(o.headerFill) });
+            if (o.borderWidth > 0) {
+              const line = { thickness: o.borderWidth, color: hexToRgb(o.borderColor), lineCap: LineCapStyle.Projecting };
+              for (const x of layout.colX) page.drawLine({ start: { x, y: 0 }, end: { x, y: h }, ...line });
+              for (const y of layout.rowY) page.drawLine({ start: { x: 0, y: h - y }, end: { x: layout.width, y: h - y }, ...line });
+            }
+          });
+          const base = mul(translate(o.x, o.y), rotateDeg(o.rotation));
+          for (const cell of layout.cells) {
+            const pieces = await Promise.all(cell.runs.map((r) => piecesFor(r.text, cell.style, pageIndex)));
+            if (pieces.every(Boolean)) cell.runs.forEach((run, k) => run.text.trim() && drawRun(base, run, pieces[k]!, cell.style));
+          }
           break;
         }
         case 'image': {
