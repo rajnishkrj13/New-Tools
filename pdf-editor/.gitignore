@@ -2,3 +2,4 @@ node_modules
 dist
 public/pdfjs
 *.log
+test-assets/local-*

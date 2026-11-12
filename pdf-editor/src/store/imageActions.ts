@@ -34,7 +34,7 @@ export async function liftPageImage(page: PageInfo, img: PageImage, dx = 0, dy =
   if (lifting.has(key)) return;
   lifting.add(key);
   try {
-    const asset = await extractPageImage(page, img.objId, `page-${page.index + 1}-picture-${img.key}`);
+    const asset = await extractPageImage(page, img.key, `page-${page.index + 1}-picture-${img.key}`);
     const s = getState();
     const index = s.pages.findIndex((p) => p.id === page.id);
     if (index < 0) return;

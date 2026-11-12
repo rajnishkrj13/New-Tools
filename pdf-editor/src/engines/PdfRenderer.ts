@@ -144,52 +144,82 @@ export function findPageImages(info: PageInfo): Promise<PageImage[]> {
   return p;
 }
 
-/** Copies a decoded picture of a page into an image asset. */
-export async function extractPageImage(info: PageInfo, objId: string, name: string): Promise<ImageAsset> {
-  const page: any = await getPdfPage(info);
-  if (!page) throw new Error('This page has no pictures.');
-  await page.getOperatorList();
-  const objs = objId.startsWith('g_') ? page.commonObjs : page.objs;
-  const img: any = await Promise.race([
-    new Promise((resolve) => objs.get(objId, resolve)),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('The picture could not be read from the PDF.')), 8000)),
-  ]);
-  const width = img?.width ?? img?.bitmap?.width;
-  const height = img?.height ?? img?.bitmap?.height;
-  if (!img || !width || !height) throw new Error('The picture could not be read from the PDF.');
+/** Draws a picture decoded by PDF.js (a bitmap or raw pixels) into a canvas; null when it is empty or unknown. */
+function decodedToCanvas(img: any): HTMLCanvasElement | null {
+  const width = img?.bitmap?.width ?? img?.width;
+  const height = img?.bitmap?.height ?? img?.height;
+  if (!width || !height || !(img.bitmap || img.data)) return null;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d')!;
   if (img.bitmap) {
     ctx.drawImage(img.bitmap, 0, 0);
-  } else if (img.data) {
-    // Raw pixels: 1 = 1-bit gray, 2 = RGB, 3 = RGBA (PDF.js ImageKind).
-    const out = ctx.createImageData(width, height);
-    const src: Uint8Array | Uint8ClampedArray = img.data;
-    if (img.kind === 3) out.data.set(src.subarray(0, out.data.length));
-    else if (img.kind === 2) {
-      for (let i = 0, j = 0; j < out.data.length; i += 3, j += 4) {
-        out.data[j] = src[i];
-        out.data[j + 1] = src[i + 1];
-        out.data[j + 2] = src[i + 2];
+    return canvas;
+  }
+  // Raw pixels: 1 = 1-bit gray, 2 = RGB, 3 = RGBA (PDF.js ImageKind).
+  const out = ctx.createImageData(width, height);
+  const src: Uint8Array | Uint8ClampedArray = img.data;
+  if (img.kind === 3) out.data.set(src.subarray(0, out.data.length));
+  else if (img.kind === 2) {
+    for (let i = 0, j = 0; j < out.data.length; i += 3, j += 4) {
+      out.data[j] = src[i];
+      out.data[j + 1] = src[i + 1];
+      out.data[j + 2] = src[i + 2];
+      out.data[j + 3] = 255;
+    }
+  } else {
+    const rowBytes = (width + 7) >> 3;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const v = src[y * rowBytes + (x >> 3)] & (0x80 >> (x & 7)) ? 255 : 0;
+        const j = (y * width + x) * 4;
+        out.data[j] = out.data[j + 1] = out.data[j + 2] = v;
         out.data[j + 3] = 255;
       }
-    } else {
-      const rowBytes = (width + 7) >> 3;
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const v = src[y * rowBytes + (x >> 3)] & (0x80 >> (x & 7)) ? 255 : 0;
-          const j = (y * width + x) * 4;
-          out.data[j] = out.data[j + 1] = out.data[j + 2] = v;
-          out.data[j + 3] = 255;
-        }
-      }
     }
-    ctx.putImageData(out, 0, 0);
-  } else {
-    throw new Error('This picture is stored in a form that cannot be edited.');
   }
+  ctx.putImageData(out, 0, 0);
+  return canvas;
+}
+
+/**
+ * Copies a decoded picture of a page into an image asset.
+ *
+ * PDF.js gives a picture a new object id every time it reads the page, and throws the
+ * decoded pictures of a page away after drawing it when they are large. So the picture is
+ * looked up by its position (`key`) in an operator list that is current, it is copied the
+ * moment PDF.js hands it over, and when its data is gone the page is read again.
+ */
+export async function extractPageImage(info: PageInfo, key: string, name: string): Promise<ImageAsset> {
+  const page: any = await getPdfPage(info);
+  if (!page) throw new Error('This page has no pictures.');
+  let canvas: HTMLCanvasElement | null = null;
+  for (let attempt = 0; attempt < 3 && !canvas; attempt++) {
+    const list = await page.getOperatorList();
+    const found = analyzeImageOps(list, pdfjs.OPS as unknown as Record<string, number>, info.viewTransform).find((i) => i.key === key);
+    if (!found) throw new Error('This picture is no longer on the page.');
+    const objs = found.objId.startsWith('g_') ? page.commonObjs : page.objs;
+    canvas = await Promise.race([
+      new Promise<HTMLCanvasElement | null>((resolve) => {
+        try {
+          objs.get(found.objId, (img: any) => {
+            try {
+              resolve(decodedToCanvas(img));
+            } catch {
+              resolve(null);
+            }
+          });
+        } catch {
+          resolve(null);
+        }
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    // Forget what PDF.js kept for this page, so the next round decodes the pictures again.
+    if (!canvas) page.cleanup();
+  }
+  if (!canvas) throw new Error('The picture could not be read from the PDF.');
   try {
     return await canvasToAsset(canvas, name);
   } finally {
