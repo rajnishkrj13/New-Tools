@@ -1,0 +1,359 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Konva from 'konva';
+import { Arrow, Ellipse, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Transformer } from 'react-konva';
+import type { EditorObject, ImageObject, TextEditObject, TextStyle } from '../types/objects';
+import type { PageInfo } from '../types/pdf';
+import { arrowHeadSize } from '../engines/PdfExporter';
+import { layoutTextEdit, layoutTextObject, type TextRun } from '../engines/TextEditLayout';
+import { getState, useEditorStore } from '../store/documentStore';
+import { cssFont } from '../utils/fontUtils';
+import { newId } from '../utils/imageUtils';
+
+/** Draws text runs exactly as the exporter does: alphabetic baseline, fitted to the run width. */
+function drawRuns(context: Konva.Context, runs: TextRun[], style: TextStyle) {
+  const c = (context as any)._context as CanvasRenderingContext2D;
+  c.fillStyle = style.color;
+  c.textBaseline = 'alphabetic';
+  c.textAlign = 'left';
+  for (const r of runs) {
+    c.font = cssFont({ ...style, fontSize: r.fontSize });
+    const natural = c.measureText(r.text).width;
+    const sx = natural > 0 && r.width > 0 ? r.width / natural : 1;
+    c.save();
+    c.translate(r.x, r.baseline);
+    c.scale(sx, 1);
+    c.fillText(r.text, 0, 0);
+    c.restore();
+    if (style.underline) {
+      const t = Math.max(0.5, r.fontSize * 0.06);
+      c.fillRect(r.x, r.baseline + r.fontSize * 0.11 - t / 2, r.width, t);
+    }
+  }
+}
+
+function useHtmlImage(url?: string) {
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!url) return setImg(null);
+    const el = new Image();
+    el.onload = () => setImg(el);
+    el.src = url;
+    return () => {
+      el.onload = null;
+    };
+  }, [url]);
+  return img;
+}
+
+function ImageNode({ o, nodeProps }: { o: ImageObject; nodeProps: Record<string, unknown> }) {
+  const url = useEditorStore((s) => s.assets[o.assetId]?.url);
+  const img = useHtmlImage(url);
+  return (
+    <KonvaImage image={img ?? undefined} x={o.x} y={o.y} width={o.width} height={o.height} rotation={o.rotation} opacity={o.opacity} {...nodeProps} />
+  );
+}
+
+function TextEditNode({ o, fontVersion }: { o: TextEditObject; fontVersion: number }) {
+  const layout = layoutTextEdit(o);
+  return (
+    <>
+      {layout.masks.map((m, i) => (
+        <Rect key={i} x={m.x} y={m.y} width={m.width} height={m.height} fill={o.maskColor} listening={false} />
+      ))}
+      <Shape
+        key={`t${fontVersion}`}
+        listening={false}
+        opacity={o.style.opacity}
+        sceneFunc={(ctx) => drawRuns(ctx, layout.runs, o.style)}
+      />
+    </>
+  );
+}
+
+const CURSORS: Partial<Record<string, string>> = { addtext: 'text', eraser: 'cell', select: 'default' };
+
+export function ObjectLayer({ page }: { page: PageInfo }) {
+  const zoom = useEditorStore((s) => s.zoom);
+  const tool = useEditorStore((s) => s.tool);
+  const selectedId = useEditorStore((s) => s.selectedId);
+  const editingTextId = useEditorStore((s) => s.editingTextId);
+  const fontVersion = useEditorStore((s) => s.fontVersion);
+  const all = useEditorStore((s) => s.objects);
+  const objects = useMemo(() => all.filter((o) => o.pageIndex === page.index), [all, page.index]);
+
+  const trRef = useRef<Konva.Transformer>(null);
+  const nodes = useRef(new Map<string, Konva.Node>());
+  const origin = useRef<{ x: number; y: number } | null>(null);
+  const erasing = useRef(false);
+  const [draft, setDraft] = useState<EditorObject | null>(null);
+
+  const selected = objects.find((o) => o.id === selectedId && o.type !== 'textedit');
+  const canSelect = tool === 'select';
+
+  useEffect(() => {
+    const tr = trRef.current;
+    if (!tr) return;
+    const node = selected && canSelect && editingTextId !== selected.id ? nodes.current.get(selected.id) : undefined;
+    tr.nodes(node ? [node] : []);
+    tr.getLayer()?.batchDraw();
+  });
+
+  const pointer = (e: Konva.KonvaEventObject<PointerEvent>) => e.target.getStage()!.getRelativePointerPosition()!;
+
+  const eraseAt = (target: Konva.Node) => {
+    const hit = objects.find((o) => o.id === target.id());
+    if (hit?.type === 'path') getState().removeObject(hit.id);
+  };
+
+  const onDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    // A text box that is being typed is saved (through its blur handler) before anything else happens.
+    const active = document.activeElement;
+    if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) active.blur();
+    const s = getState();
+    const p = pointer(e);
+    const base = { id: newId(), pageIndex: page.index };
+    const ts = s.toolStyle;
+    switch (tool) {
+      case 'select':
+        if (e.target === e.target.getStage()) s.select(null);
+        return;
+      case 'addtext':
+        return; // handled on click, so the new text field keeps the focus
+      case 'eraser':
+        erasing.current = true;
+        eraseAt(e.target);
+        return;
+      case 'whiteout':
+      case 'redact':
+        setDraft({ ...base, type: tool, x: p.x, y: p.y, width: 0, height: 0, fill: tool === 'redact' ? '#000000' : '#ffffff' });
+        break;
+      case 'rect':
+      case 'ellipse':
+        setDraft({
+          ...base, type: tool, x: p.x, y: p.y, width: 0, height: 0, rotation: 0,
+          fill: ts.shapeFill, stroke: ts.shapeStroke, strokeWidth: ts.shapeStrokeWidth, opacity: 1,
+        });
+        break;
+      case 'line':
+      case 'arrow':
+        setDraft({ ...base, type: tool, points: [p.x, p.y, p.x, p.y], stroke: ts.shapeStroke, strokeWidth: ts.shapeStrokeWidth, opacity: 1 });
+        break;
+      case 'draw':
+        setDraft({ ...base, type: 'path', points: [p.x, p.y], stroke: ts.drawColor, strokeWidth: ts.drawWidth, opacity: 1 });
+        break;
+      default:
+        return;
+    }
+    origin.current = p;
+  };
+
+  const onClick = (e: Konva.KonvaEventObject<Event>) => {
+    if (tool !== 'addtext') return;
+    const s = getState();
+    const p = e.target.getStage()!.getRelativePointerPosition()!;
+    const style = s.toolStyle.text;
+    const width = Math.max(60, Math.min(220, page.width - p.x - 8));
+    s.setTool('select');
+    s.setDraftText({ id: newId(), pageIndex: page.index, type: 'text', x: p.x, y: p.y - style.fontSize * 0.6, width, rotation: 0, text: '', ...style });
+  };
+
+  const onMove = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    if (erasing.current) return eraseAt(e.target);
+    const o = origin.current;
+    if (!draft || !o) return;
+    const p = pointer(e);
+    if (draft.type === 'path') {
+      const pts = draft.points;
+      if (Math.hypot(p.x - pts[pts.length - 2], p.y - pts[pts.length - 1]) < 0.6 / zoom) return;
+      setDraft({ ...draft, points: [...pts, p.x, p.y] });
+    } else if (draft.type === 'line' || draft.type === 'arrow') {
+      setDraft({ ...draft, points: [o.x, o.y, p.x, p.y] });
+    } else if ('height' in draft) {
+      setDraft({ ...draft, x: Math.min(o.x, p.x), y: Math.min(o.y, p.y), width: Math.abs(p.x - o.x), height: Math.abs(p.y - o.y) });
+    }
+  };
+
+  const onUp = () => {
+    erasing.current = false;
+    const d = draft;
+    if (!d) return;
+    setDraft(null);
+    origin.current = null;
+    let ok = true;
+    if (d.type === 'line' || d.type === 'arrow') ok = Math.hypot(d.points[2] - d.points[0], d.points[3] - d.points[1]) > 3;
+    else if (d.type === 'path') ok = d.points.length >= 2;
+    else if ('width' in d && 'height' in d) ok = d.width > 3 && d.height > 3;
+    if (ok) getState().addObject(d, false);
+  };
+
+  /** Lines and freehand paths keep no transform: it is baked into their points. */
+  const bake = (o: Extract<EditorObject, { points: number[] }>, node: Konva.Node) => {
+    const t = node.getTransform().copy();
+    const pts: number[] = [];
+    for (let i = 0; i + 1 < o.points.length; i += 2) {
+      const p = t.point({ x: o.points[i], y: o.points[i + 1] });
+      pts.push(p.x, p.y);
+    }
+    node.setAttrs({ x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+    getState().updateObject(o.id, { points: pts } as Partial<EditorObject>);
+  };
+
+  const nodeProps = (o: EditorObject, isDraft: boolean) => {
+    const active = !isDraft && (canSelect || (tool === 'eraser' && o.type === 'path'));
+    return {
+      id: o.id,
+      listening: active,
+      draggable: !isDraft && canSelect,
+      ref: (n: Konva.Node | null) => {
+        if (isDraft) return;
+        if (n) nodes.current.set(o.id, n);
+        else nodes.current.delete(o.id);
+      },
+      onMouseDown: () => canSelect && getState().select(o.id),
+      onTouchStart: () => canSelect && getState().select(o.id),
+      onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+        const node = e.target;
+        if ('points' in o) bake(o, node);
+        else getState().updateObject(o.id, { x: node.x(), y: node.y() } as Partial<EditorObject>);
+      },
+      onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
+        const node = e.target;
+        if ('points' in o) return bake(o, node);
+        if (o.type === 'textedit') return;
+        const sx = node.scaleX();
+        const sy = node.scaleY();
+        node.scaleX(1);
+        node.scaleY(1);
+        const patch: Record<string, number> = { x: node.x(), y: node.y(), width: Math.max(4, o.width * sx) };
+        if (o.type !== 'whiteout' && o.type !== 'redact') patch.rotation = node.rotation();
+        if ('height' in o) patch.height = Math.max(4, o.height * sy);
+        getState().updateObject(o.id, patch as Partial<EditorObject>);
+      },
+    };
+  };
+
+  const renderObject = (o: EditorObject, isDraft = false) => {
+    const props = nodeProps(o, isDraft);
+    switch (o.type) {
+      case 'textedit':
+        return <TextEditNode key={o.id} o={o} fontVersion={fontVersion} />;
+      case 'text': {
+        const layout = layoutTextObject(o);
+        return (
+          <Shape
+            key={`${o.id}:${fontVersion}`}
+            x={o.x} y={o.y} width={o.width} height={layout.height} rotation={o.rotation} opacity={o.opacity}
+            visible={editingTextId !== o.id}
+            sceneFunc={(ctx) => drawRuns(ctx, layout.lines, o)}
+            hitFunc={(ctx, shape) => {
+              ctx.beginPath();
+              ctx.rect(0, 0, shape.width(), shape.height());
+              ctx.closePath();
+              ctx.fillStrokeShape(shape);
+            }}
+            onDblClick={() => getState().setEditingText(o.id)}
+            onDblTap={() => getState().setEditingText(o.id)}
+            {...props}
+          />
+        );
+      }
+      case 'image':
+        return <ImageNode key={o.id} o={o} nodeProps={props} />;
+      case 'whiteout':
+      case 'redact':
+        return (
+          <Rect
+            key={o.id} x={o.x} y={o.y} width={o.width} height={o.height} fill={o.fill}
+            stroke={tool === 'whiteout' || tool === 'redact' || isDraft ? '#94a3b8' : undefined}
+            strokeWidth={0.6 / zoom} dash={[3 / zoom, 3 / zoom]} strokeScaleEnabled={false}
+            {...props}
+          />
+        );
+      case 'rect':
+        return (
+          <Rect
+            key={o.id} x={o.x} y={o.y} width={o.width} height={o.height} rotation={o.rotation} opacity={o.opacity}
+            fill={o.fill ?? undefined} stroke={o.stroke ?? undefined} strokeWidth={o.stroke ? o.strokeWidth : 0}
+            {...props}
+          />
+        );
+      case 'ellipse':
+        return (
+          <Ellipse
+            key={o.id} x={o.x} y={o.y} radiusX={o.width / 2} radiusY={o.height / 2} offsetX={-o.width / 2} offsetY={-o.height / 2}
+            rotation={o.rotation} opacity={o.opacity}
+            fill={o.fill ?? undefined} stroke={o.stroke ?? undefined} strokeWidth={o.stroke ? o.strokeWidth : 0}
+            {...props}
+          />
+        );
+      case 'line':
+        return <Line key={o.id} points={o.points} stroke={o.stroke} strokeWidth={o.strokeWidth} opacity={o.opacity} lineCap="round" hitStrokeWidth={14} {...props} />;
+      case 'arrow': {
+        const head = arrowHeadSize(o.strokeWidth);
+        return (
+          <Arrow
+            key={o.id} points={o.points} stroke={o.stroke} fill={o.stroke} strokeWidth={o.strokeWidth} opacity={o.opacity}
+            pointerLength={head} pointerWidth={head} hitStrokeWidth={14} {...props}
+          />
+        );
+      }
+      case 'path':
+        return (
+          <Line
+            key={o.id} points={o.points.length === 2 ? [...o.points, o.points[0] + 0.01, o.points[1]] : o.points}
+            stroke={o.stroke} strokeWidth={o.strokeWidth} opacity={o.opacity} lineCap="round" lineJoin="round" hitStrokeWidth={14} {...props}
+          />
+        );
+    }
+  };
+
+  const tr = selected
+    ? selected.type === 'image'
+      ? { anchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], keepRatio: selected.keepRatio, rotate: true }
+      : selected.type === 'text'
+        ? { anchors: ['middle-left', 'middle-right'], keepRatio: false, rotate: true }
+        : { anchors: undefined, keepRatio: false, rotate: selected.type !== 'whiteout' && selected.type !== 'redact' }
+    : null;
+
+  // Edited original text sits directly on the page, under everything the user added.
+  const edits = objects.filter((o) => o.type === 'textedit');
+  const rest = objects.filter((o) => o.type !== 'textedit');
+
+  return (
+    <Stage
+      width={page.width * zoom}
+      height={page.height * zoom}
+      scaleX={zoom}
+      scaleY={zoom}
+      className="absolute inset-0"
+      style={{ cursor: CURSORS[tool] ?? 'crosshair', touchAction: tool === 'select' ? 'auto' : 'none' }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerLeave={onUp}
+      onClick={onClick}
+      onTap={onClick}
+    >
+      <Layer>
+        {edits.map((o) => renderObject(o))}
+        {rest.map((o) => renderObject(o))}
+        {draft && renderObject(draft, true)}
+        <Transformer
+          ref={trRef}
+          rotateEnabled={tr?.rotate ?? true}
+          keepRatio={tr?.keepRatio ?? false}
+          enabledAnchors={tr?.anchors}
+          flipEnabled={false}
+          ignoreStroke
+          anchorSize={10}
+          anchorCornerRadius={5}
+          anchorStroke="#2f7df6"
+          borderStroke="#2f7df6"
+          rotateAnchorOffset={26}
+          rotationSnaps={[0, 90, 180, 270]}
+          boundBoxFunc={(oldBox, newBox) => (Math.abs(newBox.width) < 6 || Math.abs(newBox.height) < 6 ? oldBox : newBox)}
+        />
+      </Layer>
+    </Stage>
+  );
+}

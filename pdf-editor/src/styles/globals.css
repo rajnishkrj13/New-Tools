@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-workspace font-sans text-slate-800 antialiased;
+  overscroll-behavior: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #2f7df6;
+  outline-offset: 1px;
+}
+
+input[type='range'] {
+  accent-color: #2f7df6;
+}
+
+input[type='checkbox'] {
+  accent-color: #2f7df6;
+  width: 15px;
+  height: 15px;
+}
+
+/* Thin, unobtrusive scrollbars for the thumbnail list and panels. */
+[data-thumbs],
+aside {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation-duration: 0.001ms !important;
+  }
+}
