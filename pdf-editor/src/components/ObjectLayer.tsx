@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Konva from 'konva';
-import { Arrow, Ellipse, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Transformer } from 'react-konva';
+import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Transformer } from 'react-konva';
 import type { EditorObject, ImageObject, TextEditObject, TextStyle } from '../types/objects';
 import type { PageInfo } from '../types/pdf';
 import { arrowHeadSize } from '../engines/PdfExporter';
+import { getPdfPage } from '../engines/PdfRenderer';
+import { getCachedTextModel, loadTextModel } from '../engines/PdfTextExtractor';
+import { MARK_OPACITY, markForArea, markShapes, marksForBox } from '../engines/TextHighlighter';
 import { layoutTextEdit, layoutTextObject, type TextRun } from '../engines/TextEditLayout';
 import { getState, useEditorStore } from '../store/documentStore';
 import { cssFont } from '../utils/fontUtils';
@@ -70,7 +73,7 @@ function TextEditNode({ o, fontVersion }: { o: TextEditObject; fontVersion: numb
   );
 }
 
-const CURSORS: Partial<Record<string, string>> = { addtext: 'text', eraser: 'cell', select: 'default' };
+const CURSORS: Partial<Record<string, string>> = { addtext: 'text', highlight: 'text', eraser: 'cell', select: 'default' };
 
 export function ObjectLayer({ page }: { page: PageInfo }) {
   const zoom = useEditorStore((s) => s.zoom);
@@ -85,6 +88,8 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   const nodes = useRef(new Map<string, Konva.Node>());
   const origin = useRef<{ x: number; y: number } | null>(null);
   const erasing = useRef(false);
+  /** True while the mark being dragged follows text (false: a free area, e.g. on a scan). */
+  const onText = useRef(false);
   const [draft, setDraft] = useState<EditorObject | null>(null);
 
   const selected = objects.find((o) => o.id === selectedId && o.type !== 'textedit');
@@ -97,6 +102,14 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
   });
+
+  // The highlighter snaps to the page's text, which is read once per page.
+  useEffect(() => {
+    if (tool !== 'highlight' || getCachedTextModel(page.index)) return;
+    getPdfPage(page)
+      .then((p) => loadTextModel(p, page))
+      .catch(() => undefined);
+  }, [tool, page]);
 
   const pointer = (e: Konva.KonvaEventObject<PointerEvent>) => e.target.getStage()!.getRelativePointerPosition()!;
 
@@ -126,6 +139,10 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
       case 'whiteout':
       case 'redact':
         setDraft({ ...base, type: tool, x: p.x, y: p.y, width: 0, height: 0, fill: tool === 'redact' ? '#000000' : '#ffffff' });
+        break;
+      case 'highlight':
+        onText.current = false;
+        setDraft({ ...base, type: 'highlight', mode: ts.markMode, color: ts.markColor, opacity: MARK_OPACITY[ts.markMode], rects: [] });
         break;
       case 'rect':
       case 'ellipse':
@@ -162,7 +179,12 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     const o = origin.current;
     if (!draft || !o) return;
     const p = pointer(e);
-    if (draft.type === 'path') {
+    if (draft.type === 'highlight') {
+      const box = { x: Math.min(o.x, p.x), y: Math.min(o.y, p.y), width: Math.abs(p.x - o.x), height: Math.abs(p.y - o.y) };
+      const rects = marksForBox(getCachedTextModel(page.index)?.lines ?? [], box);
+      onText.current = rects.length > 0;
+      setDraft({ ...draft, rects: rects.length ? rects : [markForArea(box)] });
+    } else if (draft.type === 'path') {
       const pts = draft.points;
       if (Math.hypot(p.x - pts[pts.length - 2], p.y - pts[pts.length - 1]) < 0.6 / zoom) return;
       setDraft({ ...draft, points: [...pts, p.x, p.y] });
@@ -182,6 +204,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     let ok = true;
     if (d.type === 'line' || d.type === 'arrow') ok = Math.hypot(d.points[2] - d.points[0], d.points[3] - d.points[1]) > 3;
     else if (d.type === 'path') ok = d.points.length >= 2;
+    else if (d.type === 'highlight') ok = d.rects.length > 0 && (onText.current || (d.rects[0].width > 3 && d.rects[0].height > 3));
     else if ('width' in d && 'height' in d) ok = d.width > 3 && d.height > 3;
     if (ok) getState().addObject(d, false);
   };
@@ -203,7 +226,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     return {
       id: o.id,
       listening: active,
-      draggable: !isDraft && canSelect,
+      draggable: !isDraft && canSelect && o.type !== 'highlight',
       ref: (n: Konva.Node | null) => {
         if (isDraft) return;
         if (n) nodes.current.set(o.id, n);
@@ -219,7 +242,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
       onTransformEnd: (e: Konva.KonvaEventObject<Event>) => {
         const node = e.target;
         if ('points' in o) return bake(o, node);
-        if (o.type === 'textedit') return;
+        if (o.type === 'textedit' || o.type === 'highlight') return;
         const sx = node.scaleX();
         const sy = node.scaleY();
         node.scaleX(1);
@@ -269,6 +292,16 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
             {...props}
           />
         );
+      case 'highlight':
+        return (
+          <Group key={o.id} {...props}>
+            {markShapes(o).map((r, i) => (
+              <Rect key={i} x={r.x} y={r.y} width={r.width} height={r.height} fill={o.color} opacity={o.opacity} />
+            ))}
+            {/* Thin lines are hard to hit: the whole text band selects an underline or strikethrough. */}
+            {o.mode !== 'highlight' && o.rects.map((r, i) => <Rect key={`h${i}`} x={r.x} y={r.y} width={r.width} height={r.height} fill="rgba(0,0,0,0)" />)}
+          </Group>
+        );
       case 'rect':
         return (
           <Rect
@@ -310,7 +343,9 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   const tr = selected
     ? selected.type === 'image'
       ? { anchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], keepRatio: selected.keepRatio, rotate: true }
-      : selected.type === 'text'
+      : selected.type === 'highlight'
+        ? { anchors: [] as string[], keepRatio: false, rotate: false }
+        : selected.type === 'text'
         ? { anchors: ['middle-left', 'middle-right'], keepRatio: false, rotate: true }
         : { anchors: undefined, keepRatio: false, rotate: selected.type !== 'whiteout' && selected.type !== 'redact' }
     : null;

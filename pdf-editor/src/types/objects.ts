@@ -79,6 +79,26 @@ export interface MaskObject extends BaseObject {
   fill: string;
 }
 
+export type MarkMode = 'highlight' | 'underline' | 'strike';
+
+/** Band of one marked text line in view space; `base` is the baseline measured from `y`. */
+export interface MarkRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  base: number;
+}
+
+/** Highlight, underline or strikethrough over text. It is tied to its text and cannot be moved. */
+export interface HighlightObject extends BaseObject {
+  type: 'highlight';
+  mode: MarkMode;
+  rects: MarkRect[];
+  color: string;
+  opacity: number;
+}
+
 /** Geometry of one original text line, kept so the original layout is never lost. */
 export interface OrigLine {
   text: string;
@@ -126,6 +146,7 @@ export type EditorObject =
   | LineObject
   | PathObject
   | MaskObject
+  | HighlightObject
   | TextEditObject;
 
 export type ObjectType = EditorObject['type'];

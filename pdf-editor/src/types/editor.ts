@@ -1,9 +1,10 @@
-import type { TextStyle } from './objects';
+import type { MarkMode, TextStyle } from './objects';
 
 export type Tool =
   | 'select'
   | 'edittext'
   | 'addtext'
+  | 'highlight'
   | 'whiteout'
   | 'redact'
   | 'draw'
@@ -21,6 +22,8 @@ export interface ToolStyle {
   shapeFill: string | null;
   shapeStroke: string;
   shapeStrokeWidth: number;
+  markMode: MarkMode;
+  markColor: string;
   text: TextStyle;
 }
 

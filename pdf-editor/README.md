@@ -23,7 +23,7 @@ The production build adds a Content-Security-Policy that blocks connections to o
 
 ```bash
 npm run make-samples   # writes test-assets/sample.pdf (5 pages)
-npm test               # 23 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools
+npm test               # 26 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools, text marks
 npm run typecheck
 ```
 
@@ -34,6 +34,18 @@ npm run typecheck
 - If a page's text cannot be mapped safely (unusual encodings, text inside form XObjects,
   vertical writing), that text is covered instead and the export dialog says so.
 - Whiteout always only covers. Secure redact turns the whole page into an image.
+
+## Highlight, underline, strikethrough
+
+The **Highlight** tool marks text: drag across it and the mark snaps to the characters and
+lines the drag covers (`src/engines/TextHighlighter.ts`). The options row switches between
+highlight, underline and strikethrough and sets the color.
+
+- A mark stays on its text: it can be selected, recolored, restyled and deleted, not moved.
+- On a page without readable text (a scan) the dragged area itself is marked.
+- Highlights are saved with multiply blending, so the text under them stays dark.
+- Marks follow the original text positions. A paragraph changed with Edit Text may have
+  re-wrapped, so a mark on it can land where the text used to be.
 
 ## Auto-save
 

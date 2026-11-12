@@ -1,7 +1,8 @@
 import {
   AlignCenter, AlignLeft, AlignRight, Bold, BringToFront, Copy, Italic, RotateCcw, SendToBack, ShieldCheck, Trash2, TriangleAlert, Underline,
 } from 'lucide-react';
-import type { EditorObject, TextStyle } from '../types/objects';
+import type { EditorObject, MarkMode, TextStyle } from '../types/objects';
+import { MARK_OPACITY } from '../engines/TextHighlighter';
 import { listFonts } from '../engines/FontManager';
 import { getCachedTextModel } from '../engines/PdfTextExtractor';
 import { getState, useEditorStore } from '../store/documentStore';
@@ -114,7 +115,7 @@ function Actions({ o }: { o: EditorObject }) {
         <button type="button" className={btn} onClick={() => s.reorderObject(o.id, 'backward')}><SendToBack size={14} /> Backward</button>
       </div>
       <div className="flex gap-2">
-        <button type="button" className={btn} onClick={() => s.duplicateObject(o.id)}><Copy size={14} /> Duplicate</button>
+        {o.type !== 'highlight' && <button type="button" className={btn} onClick={() => s.duplicateObject(o.id)}><Copy size={14} /> Duplicate</button>}
         <button type="button" className={`${btn} !border-red-200 !text-red-600 hover:!bg-red-50`} onClick={() => s.removeObject(o.id)}><Trash2 size={14} /> Delete</button>
       </div>
     </Section>
@@ -123,7 +124,7 @@ function Actions({ o }: { o: EditorObject }) {
 
 const TITLES: Record<string, string> = {
   text: 'Text box', image: 'Image', rect: 'Rectangle', ellipse: 'Circle', line: 'Line', arrow: 'Arrow', path: 'Drawing',
-  whiteout: 'Whiteout', redact: 'Secure redaction',
+  whiteout: 'Whiteout', redact: 'Secure redaction', highlight: 'Text mark',
 };
 
 function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }> }) {
@@ -161,6 +162,28 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
           <Color label="Color" value={o.stroke} onChange={(v) => update({ stroke: v }, 'stroke')} />
           <Num label="Thickness" value={o.strokeWidth} min={0.25} max={60} step={0.5} onChange={(v) => update({ strokeWidth: v }, 'sw')} />
           <Opacity value={o.opacity} onChange={(v) => update({ opacity: v }, 'opacity')} />
+        </Section>
+      )}
+      {o.type === 'highlight' && (
+        <Section title="Appearance">
+          <label className="flex items-center justify-between text-xs text-slate-600">
+            <span>Style</span>
+            <select
+              value={o.mode}
+              onChange={(e) => {
+                const mode = e.target.value as MarkMode;
+                update({ mode, opacity: MARK_OPACITY[mode] }, 'mode');
+              }}
+              className="h-7 rounded-md border border-slate-200 px-1 text-xs"
+            >
+              <option value="highlight">Highlight</option>
+              <option value="underline">Underline</option>
+              <option value="strike">Strikethrough</option>
+            </select>
+          </label>
+          <Color label="Color" value={o.color} onChange={(v) => update({ color: v }, 'color')} />
+          <Opacity value={o.opacity} onChange={(v) => update({ opacity: v }, 'opacity')} />
+          <p className="text-[11px] leading-snug text-slate-500">A mark stays on its text and cannot be moved. Delete it and drag again to change what it covers.</p>
         </Section>
       )}
       {o.type === 'whiteout' && (
@@ -266,6 +289,7 @@ const TIPS: Record<string, string> = {
   select: 'Select an object on the page to change its properties here.',
   edittext: 'Click a word, line or letter in the document to change it. Formatting options appear next to the text and here.',
   addtext: 'Click anywhere on a page to start a new text box.',
+  highlight: 'Drag across text to highlight, underline or strike it through.',
   whiteout: 'Drag over content to cover it with a white box.',
   redact: 'Drag over content that must be removed from the file for good.',
   draw: 'Draw freehand on the page with the mouse, a pen or a finger.',

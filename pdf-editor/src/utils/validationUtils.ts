@@ -43,6 +43,9 @@ export function validateObjects(objects: EditorObject[], pages: PageInfo[], asse
       case 'arrow':
         if (!finite(...o.points)) problems.push(`A line on ${where} has invalid points.`);
         break;
+      case 'highlight':
+        if (!o.rects.length || !o.rects.every((r) => finite(r.x, r.y, r.width, r.height, r.base))) problems.push(`A text mark on ${where} has an invalid position.`);
+        break;
       case 'textedit':
         if (!o.orig.length) problems.push(`A text edit on ${where} lost its original layout.`);
         break;

@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { PDFDocument, StandardFonts, decodePDFRawStream } from 'pdf-lib';
 import { getShaper } from '../src/engines/TextShaper';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
-import type { EditorObject, ImageAsset } from '../src/types/objects';
+import type { EditorObject, HighlightObject, ImageAsset } from '../src/types/objects';
+import type { TextLine } from '../src/types/text';
+import { markShapes, marksForBox, rotateMark } from '../src/engines/TextHighlighter';
 import type { Matrix, PageInfo } from '../src/types/pdf';
 import { applyMatrix, computeViewTransform, invert, makePageInfo, mul, viewRectToPdfRect } from '../src/engines/CoordinateMapper';
 import { exportPdf, ExportError, pageInfoFromPdfLib } from '../src/engines/PdfExporter';
@@ -533,5 +535,60 @@ describe.runIf(existsSync(SAMPLE))('PdfExporter on test-assets/sample.pdf', () =
     expect((await viewItems(out, 1)).items.length).toBeGreaterThan(0);
     const vp = (await out.getPage(2)).getViewport({ scale: 1 });
     expect(vp.width).toBeCloseTo(pages[1].width, 3);
+  });
+});
+
+describe('TextHighlighter', () => {
+  const line = (id: string, top: number, text: string, x = 100): TextLine => ({
+    id, pageIndex: 0, text, x, right: x + text.length * 10, baseline: top + 10, top, bottom: top + 12, fontSize: 12,
+    fontName: 'f', generic: 'sans-serif', segments: [{ str: text, x, width: text.length * 10, start: 0 }], reliableChars: true,
+    charX: Array.from({ length: text.length + 1 }, (_, k) => x + k * 10),
+  });
+  const lines = [line('a', 100, 'Hello world'), line('b', 120, 'Second line'), line('c', 300, 'Far away')];
+
+  it('marks only the characters and lines the dragged box covers', () => {
+    // Covers "world" on the first line and "line" on the second; the third line is out of reach.
+    const marks = marksForBox(lines, { x: 158, y: 104, width: 60, height: 24 });
+    expect(marks).toHaveLength(2);
+    expect(marks[0]).toMatchObject({ x: 160, y: 100, width: 50, height: 12, base: 10 });
+    expect(marks[1]).toMatchObject({ x: 170, width: 40, y: 120 });
+    // A thin drag along one line marks that line only.
+    expect(marksForBox(lines, { x: 100, y: 105, width: 40, height: 1 })).toHaveLength(1);
+    expect(marksForBox(lines, { x: 400, y: 100, width: 50, height: 12 })).toHaveLength(0);
+  });
+
+  it('draws underline below and strikethrough above the baseline, inside the line band', () => {
+    const rects = marksForBox(lines, { x: 100, y: 100, width: 200, height: 12 });
+    const [hl] = markShapes({ mode: 'highlight', rects });
+    const [ul] = markShapes({ mode: 'underline', rects });
+    const [st] = markShapes({ mode: 'strike', rects });
+    expect(hl).toEqual({ x: 100, y: 100, width: 110, height: 12 });
+    expect(ul.y).toBeGreaterThan(110);
+    expect(ul.y + ul.height).toBeLessThanOrEqual(112.5);
+    expect(st.y).toBeGreaterThan(100);
+    expect(st.y + st.height).toBeLessThan(110);
+  });
+
+  it.runIf(existsSync(SAMPLE))('exports a highlight with multiply blending and keeps the text under it', async () => {
+    const bytes = new Uint8Array(readFileSync(SAMPLE));
+    const src = await PDFDocument.load(bytes);
+    const pages = src.getPages().map((p, i) => pageInfoFromPdfLib(p, i));
+    const rects = [{ x: 72, y: 60, width: 200, height: 20, base: 16 }];
+    const objects: EditorObject[] = [
+      { id: 'h', type: 'highlight', pageIndex: 0, mode: 'highlight', rects, color: '#ffe14d', opacity: 0.4 },
+      { id: 'u', type: 'highlight', pageIndex: 3, mode: 'underline', rects, color: '#e11d48', opacity: 1 },
+    ];
+    const result = await exportPdf({ bytes, pages, objects, assets: {} });
+    expect(result.objectsWritten).toBe(2);
+    const out = await PDFDocument.load(result.bytes);
+    const res = out.getPage(0).node.Resources()!.toString();
+    expect(res).toContain('/BM /Multiply');
+    const first = await viewItems(await openWithPdfJs(result.bytes), 1);
+    expect(first.items.some((i) => i.str.includes('Quarterly Report'))).toBe(true);
+    // Rotating the page turns an underline into its painted shape at the new position.
+    const turned = rotateMark(objects[1] as HighlightObject, [0, 1, -1, 0, 500, 0]);
+    expect(turned.mode).toBe('highlight');
+    expect(turned.rects[0].width).toBeLessThan(2);
+    expect(turned.rects[0].height).toBeCloseTo(200, 5);
   });
 });

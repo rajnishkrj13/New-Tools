@@ -1,6 +1,7 @@
 // fontkit (used for embedded font files) expects this runtime to exist.
 import 'regenerator-runtime/runtime';
 import {
+  BlendMode,
   PDFArray,
   PDFDocument,
   PDFFont,
@@ -34,6 +35,7 @@ import {
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { EditorObject, ImageAsset, TextEditObject, TextStyle } from '../types/objects';
+import { markShapes } from './TextHighlighter';
 import type { Matrix, PageInfo, Rect } from '../types/pdf';
 import { FLIP_Y, computeViewTransform, invert, makePageInfo, mul, rotateDeg, translate } from './CoordinateMapper';
 import { FALLBACK_FONT_ID, getFont, hasBundledFont, loadBundledFont } from './FontManager';
@@ -413,6 +415,15 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
         case 'whiteout':
           inView(boxFrame(o), () => page.drawRectangle({ x: 0, y: 0, width: o.width, height: o.height, color: hexToRgb(o.fill) }));
           break;
+        case 'highlight': {
+          const color = hexToRgb(o.color);
+          // Multiply keeps the text under a highlight as dark as it was.
+          const blendMode = o.mode === 'highlight' ? BlendMode.Multiply : undefined;
+          for (const r of markShapes(o)) {
+            inView(boxFrame(r), () => page.drawRectangle({ x: 0, y: 0, width: r.width, height: r.height, color, opacity: o.opacity, blendMode }));
+          }
+          break;
+        }
         case 'rect':
         case 'ellipse': {
           const common = {

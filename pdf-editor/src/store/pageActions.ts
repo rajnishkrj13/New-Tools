@@ -3,6 +3,7 @@ import type { EditorObject } from '../types/objects';
 import type { Matrix, PageInfo } from '../types/pdf';
 import { applyMatrix, invert, makePageInfo, mul } from '../engines/CoordinateMapper';
 import { openSource, readPages } from '../engines/PdfRenderer';
+import { rotateMark } from '../engines/TextHighlighter';
 import { newId } from '../utils/imageUtils';
 import { validatePdfFile } from '../utils/validationUtils';
 import { getState } from './documentStore';
@@ -57,6 +58,7 @@ function rotateObject(o: EditorObject, m: Matrix, delta: number): EditorObject {
     return { ...o, points } as EditorObject;
   }
   if (o.type === 'textedit') return o;
+  if (o.type === 'highlight') return rotateMark(o, m);
   if (!('rotation' in o)) {
     // Whiteout / redaction boxes stay upright rectangles.
     const [ax, ay] = applyMatrix(m, o.x, o.y);

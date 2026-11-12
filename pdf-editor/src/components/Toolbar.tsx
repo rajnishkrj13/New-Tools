@@ -1,10 +1,11 @@
 import { useRef } from 'react';
 import {
-  Check, Circle, Download, Eraser, EyeOff, FileText, FolderOpen, ImagePlus, Maximize, Minus, MousePointer2, MoveHorizontal,
-  MoveUpRight, PaintBucket, Pencil, Redo2, Shapes, Signature, Square, TextCursorInput, Type, Undo2, Upload, ZoomIn, ZoomOut,
+  Check, Circle, Download, Eraser, EyeOff, FileText, FolderOpen, Highlighter, ImagePlus, Maximize, Minus, MousePointer2, MoveHorizontal,
+  MoveUpRight, PaintBucket, Pencil, Redo2, Shapes, Signature, Square, Strikethrough, TextCursorInput, Type, Underline, Undo2, Upload, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import type { Tool } from '../types/editor';
 import { SHAPE_TOOLS } from '../types/editor';
+import type { MarkMode } from '../types/objects';
 import type { EditLevel } from '../types/text';
 import { listFonts, registerCustomFont } from '../engines/FontManager';
 import { applyChanges, downloadPdf } from '../hooks/useExport';
@@ -69,6 +70,7 @@ function Segmented<T extends string>(props: { value: T; options: { value: T; lab
 const colorInput = 'h-7 w-8 cursor-pointer rounded-md border border-slate-200 bg-white p-0.5';
 const numberInput = 'h-7 w-16 rounded-md border border-slate-200 px-1.5 text-xs';
 const hint = 'text-xs text-slate-500';
+const MARK_COLORS: [string, string][] = [['#ffe14d', 'Yellow'], ['#8ef59b', 'Green'], ['#ff9ecb', 'Pink'], ['#8fd3ff', 'Blue'], ['#e11d48', 'Red'], ['#111827', 'Black']];
 
 /** Second row: options of the active tool. */
 function ToolOptions() {
@@ -150,6 +152,36 @@ function ToolOptions() {
           className={numberInput}
         />
         <input aria-label="Text color" type="color" value={ts.text.color} onChange={(e) => set({ text: { ...ts.text, color: e.target.value } })} className={colorInput} />
+      </>
+    );
+  } else if (tool === 'highlight') {
+    content = (
+      <>
+        <Segmented<MarkMode>
+          value={ts.markMode}
+          onChange={(markMode) => set({ markMode })}
+          options={[
+            { value: 'highlight', label: <><Highlighter size={13} /> Highlight</> },
+            { value: 'underline', label: <><Underline size={13} /> Underline</> },
+            { value: 'strike', label: <><Strikethrough size={13} /> Strikethrough</> },
+          ]}
+        />
+        <div className="flex items-center gap-1" role="group" aria-label="Mark color">
+          {MARK_COLORS.map(([c, name]) => (
+            <button
+              key={c}
+              type="button"
+              title={name}
+              aria-label={name}
+              aria-pressed={ts.markColor === c}
+              onClick={() => set({ markColor: c })}
+              className={`h-6 w-6 rounded-full border ${ts.markColor === c ? 'border-slate-900 ring-2 ring-brand-500' : 'border-slate-300'}`}
+              style={{ background: c }}
+            />
+          ))}
+          <input aria-label="Custom mark color" type="color" value={ts.markColor} onChange={(e) => set({ markColor: e.target.value })} className={colorInput} />
+        </div>
+        <span className={hint}>Drag across text to mark it. On a scanned page the dragged area is marked.</span>
       </>
     );
   } else if (tool === 'whiteout' || tool === 'redact') {
@@ -272,6 +304,7 @@ export function Toolbar() {
           <ToolButton icon={<MousePointer2 size={18} />} label="Select" active={tool === 'select'} onClick={pick('select')} />
           <ToolButton icon={<TextCursorInput size={18} />} label="Edit Text" active={tool === 'edittext'} onClick={pick('edittext')} />
           <ToolButton icon={<Type size={18} />} label="Add Text" active={tool === 'addtext'} onClick={pick('addtext')} />
+          <ToolButton icon={<Highlighter size={18} />} label="Highlight" active={tool === 'highlight'} onClick={pick('highlight')} />
           <ToolButton icon={<ImagePlus size={18} />} label="Add Image" onClick={() => imageInput.current?.click()} />
           <ToolButton icon={<Eraser size={18} />} label="Whiteout" active={tool === 'whiteout' || tool === 'redact'} onClick={pick(tool === 'redact' ? 'redact' : 'whiteout')} />
           <ToolButton icon={<Pencil size={18} />} label="Draw" active={tool === 'draw' || tool === 'eraser'} onClick={pick(tool === 'eraser' ? 'eraser' : 'draw')} />

@@ -109,6 +109,8 @@ const defaultToolStyle: ToolStyle = {
   shapeFill: null,
   shapeStroke: '#dc2626',
   shapeStrokeWidth: 2,
+  markMode: 'highlight',
+  markColor: '#ffe14d',
   text: { fontFamily: 'Helvetica', fontSize: 14, bold: false, italic: false, underline: false, color: '#111827', align: 'left', opacity: 1 },
 };
 
@@ -221,7 +223,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   duplicateObject: (id) => {
     const src = get().objects.find((o) => o.id === id);
-    if (!src || src.type === 'textedit') return;
+    if (!src || src.type === 'textedit' || src.type === 'highlight') return;
     const copy = { ...src, id: newId() } as EditorObject;
     if ('points' in copy) {
       (copy as { points: number[] }).points = copy.points.map((v) => v + 12);
