@@ -66,6 +66,26 @@ export async function importImageFile(file: File): Promise<ImageAsset> {
   }
 }
 
+/**
+ * Stores a canvas as an image asset: PNG when it has transparent pixels, otherwise JPEG
+ * (a photo saved as PNG would make the exported file many times larger).
+ */
+export async function canvasToAsset(canvas: HTMLCanvasElement, name: string): Promise<ImageAsset> {
+  const { width, height } = canvas;
+  const data = canvas.getContext('2d')!.getImageData(0, 0, width, height).data;
+  let transparent = false;
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] < 250) {
+      transparent = true;
+      break;
+    }
+  }
+  // Small pictures (logos, icons) stay lossless.
+  const png = transparent || width * height <= 256 * 256;
+  const bytes = png ? await canvasToBytes(canvas, 'image/png') : await canvasToBytes(canvas, 'image/jpeg', 0.92);
+  return makeAsset(`${name}.${png ? 'png' : 'jpg'}`, png ? 'image/png' : 'image/jpeg', bytes, width, height);
+}
+
 /** Crops a drawing canvas to its inked area and returns it as a transparent PNG asset. */
 export async function canvasToTrimmedAsset(canvas: HTMLCanvasElement, name: string): Promise<ImageAsset | null> {
   const ctx = canvas.getContext('2d')!;

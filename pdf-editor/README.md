@@ -22,8 +22,8 @@ The production build adds a Content-Security-Policy that blocks connections to o
 ## Tests
 
 ```bash
-npm run make-samples   # writes test-assets/sample.pdf (5 pages)
-npm test               # 26 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools, text marks
+npm run make-samples   # writes test-assets/sample.pdf (5 pages) and sample-images.pdf (pictures)
+npm test               # 30 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools, text marks, pictures
 npm run typecheck
 ```
 
@@ -46,6 +46,29 @@ highlight, underline and strikethrough and sets the color.
 - Highlights are saved with multiply blending, so the text under them stays dark.
 - Marks follow the original text positions. A paragraph changed with Edit Text may have
   re-wrapped, so a mark on it can land where the text used to be.
+
+## Pictures
+
+- **Pictures already in the PDF:** with the Select tool, click a picture or drag it. It
+  becomes an ordinary image object and can then be moved, resized, rotated, replaced or
+  deleted. Undo puts the original back. A picture that fills the page (a scan) needs a
+  double-click.
+- **Replace:** select an image and use **Replace image** in the properties panel. It keeps
+  its place and width.
+- **Move to another page:** drag an object out of its page and drop it on another one (the
+  target page is outlined), or set **On page** in the properties panel.
+- On export the picture's paint operator is removed from the page content
+  (`src/engines/PdfImages.ts`), so the old picture is not drawn any more. If the page
+  content does not match what was shown, the picture is covered instead and the export
+  dialog says so.
+- The removed picture's data may stay inside the file as unused data.
+- A picture inside a form XObject can be edited too, but it is covered in the exported
+  file instead of removed (the export dialog says so).
+- Not editable this way: pictures of annotations, inline images, stencil masks, and
+  mirrored or skewed pictures. A picture taken from the PDF is stored
+  again as JPEG (or PNG when it has transparency or is small).
+- On screen the old place of a picture is covered with the paper colour, which also hides
+  anything the page drew on top of it; the exported file keeps that content.
 
 ## Auto-save
 

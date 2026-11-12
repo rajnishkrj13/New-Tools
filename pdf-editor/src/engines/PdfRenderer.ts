@@ -4,6 +4,9 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { DocumentInfo, PageInfo, Rect } from '../types/pdf';
 import { makePageInfo } from './CoordinateMapper';
 import { analyzeOperatorList, type TextOpInfo } from './TextRemover';
+import { analyzeImageOps, type PageImage } from './PdfImages';
+import type { ImageAsset } from '../types/objects';
+import { canvasToAsset } from '../utils/imageUtils';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -44,6 +47,7 @@ async function parse(bytes: Uint8Array): Promise<PDFDocumentProxy> {
 export async function closeAllPdfs() {
   const all = [...docs.values()];
   docs.clear();
+  pageImages.clear();
   pageCanvases.clear();
   await Promise.all(all.map((d) => d.destroy().catch(() => undefined)));
 }
@@ -120,6 +124,77 @@ export async function analyzeTextOps(info: PageInfo): Promise<TextOpInfo[] | nul
     }
     return null;
   });
+}
+
+const pageImages = new Map<string, Promise<PageImage[]>>();
+
+/** The pictures a page paints itself, with their place on screen. Empty for blank pages. */
+export function findPageImages(info: PageInfo): Promise<PageImage[]> {
+  const key = `${info.id}r${info.rotation}`;
+  let p = pageImages.get(key);
+  if (!p) {
+    p = getPdfPage(info)
+      .then(async (page: any) => (page ? analyzeImageOps(await page.getOperatorList(), pdfjs.OPS as unknown as Record<string, number>, info.viewTransform) : []))
+      .catch(() => {
+        pageImages.delete(key);
+        return [];
+      });
+    pageImages.set(key, p);
+  }
+  return p;
+}
+
+/** Copies a decoded picture of a page into an image asset. */
+export async function extractPageImage(info: PageInfo, objId: string, name: string): Promise<ImageAsset> {
+  const page: any = await getPdfPage(info);
+  if (!page) throw new Error('This page has no pictures.');
+  await page.getOperatorList();
+  const objs = objId.startsWith('g_') ? page.commonObjs : page.objs;
+  const img: any = await Promise.race([
+    new Promise((resolve) => objs.get(objId, resolve)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('The picture could not be read from the PDF.')), 8000)),
+  ]);
+  const width = img?.width ?? img?.bitmap?.width;
+  const height = img?.height ?? img?.bitmap?.height;
+  if (!img || !width || !height) throw new Error('The picture could not be read from the PDF.');
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  if (img.bitmap) {
+    ctx.drawImage(img.bitmap, 0, 0);
+  } else if (img.data) {
+    // Raw pixels: 1 = 1-bit gray, 2 = RGB, 3 = RGBA (PDF.js ImageKind).
+    const out = ctx.createImageData(width, height);
+    const src: Uint8Array | Uint8ClampedArray = img.data;
+    if (img.kind === 3) out.data.set(src.subarray(0, out.data.length));
+    else if (img.kind === 2) {
+      for (let i = 0, j = 0; j < out.data.length; i += 3, j += 4) {
+        out.data[j] = src[i];
+        out.data[j + 1] = src[i + 1];
+        out.data[j + 2] = src[i + 2];
+        out.data[j + 3] = 255;
+      }
+    } else {
+      const rowBytes = (width + 7) >> 3;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const v = src[y * rowBytes + (x >> 3)] & (0x80 >> (x & 7)) ? 255 : 0;
+          const j = (y * width + x) * 4;
+          out.data[j] = out.data[j + 1] = out.data[j + 2] = v;
+          out.data[j + 3] = 255;
+        }
+      }
+    }
+    ctx.putImageData(out, 0, 0);
+  } else {
+    throw new Error('This picture is stored in a form that cannot be edited.');
+  }
+  try {
+    return await canvasToAsset(canvas, name);
+  } finally {
+    release(canvas);
+  }
 }
 
 const MAX_PIXELS = 16_000_000;

@@ -3,6 +3,8 @@ import 'regenerator-runtime/runtime';
 import {
   BlendMode,
   PDFArray,
+  PDFDict,
+  PDFStream,
   PDFDocument,
   PDFFont,
   PDFHexString,
@@ -34,8 +36,10 @@ import {
   setLineJoin,
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import type { EditorObject, ImageAsset, TextEditObject, TextStyle } from '../types/objects';
+import { isPageEdit } from '../types/objects';
+import type { EditorObject, ImageAsset, ImageCutObject, TextEditObject, TextStyle } from '../types/objects';
 import { markShapes } from './TextHighlighter';
+import { removeImageOps } from './PdfImages';
 import type { Matrix, PageInfo, Rect } from '../types/pdf';
 import { FLIP_Y, computeViewTransform, invert, makePageInfo, mul, rotateDeg, translate } from './CoordinateMapper';
 import { FALLBACK_FONT_ID, getFont, hasBundledFont, loadBundledFont } from './FontManager';
@@ -84,6 +88,8 @@ export interface ExportResult {
   flattenedPages: number[];
   /** Original glyphs deleted from the content streams because their text was edited. */
   removedGlyphs: number;
+  /** Original pictures whose paint operator was removed from the content streams. */
+  removedImages: number;
   /** Pieces of text drawn through the complex-script shaper. */
   shapedRuns: number;
   /** True when pages were moved, rotated, added or deleted. */
@@ -255,6 +261,8 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
   const flattenedPages: number[] = [];
   const coveredPages = new Set<number>();
   let removedGlyphs = 0;
+  let removedImages = 0;
+  const coveredImagePages = new Set<number>();
   let shapedRuns = 0;
   let written = 0;
 
@@ -283,23 +291,58 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     // Take the original glyphs of edited text out of the page content, so the old text is
     // gone from the file (not just hidden). Must happen before anything is drawn on the page.
     const removedMasks = new Set<Rect>();
+    const removedCuts = new Set<string>();
     const edits = list.filter((o): o is TextEditObject => o.type === 'textedit');
-    if (edits.length && input.analyzeText && !redactions.length) {
+    const cuts = list.filter((o): o is ImageCutObject => o.type === 'imagecut');
+    if ((edits.length || cuts.length) && !redactions.length) {
+      let content: Uint8Array | null = null;
+      let changed = false;
       try {
-        const masks = edits.flatMap((e) => layoutTextEdit(e).masks);
-        const info = masks.length ? await input.analyzeText(pageIndex) : null;
-        const content = info ? readPageContent(doc, page) : null;
-        if (info && content) {
-          const res = removeGlyphsFromContent(content, info, masks);
-          if (!('error' in res) && res.removedGlyphs > 0) {
-            const ref = doc.context.register(doc.context.flateStream(res.bytes));
-            page.node.set(PDFName.of('Contents'), doc.context.obj([ref]));
-            masks.forEach((m, k) => res.removedPerRect[k] > 0 && removedMasks.add(m));
-            removedGlyphs += res.removedGlyphs;
-          }
-        }
+        content = readPageContent(doc, page);
       } catch {
-        /* the text is covered instead */
+        /* covered instead */
+      }
+      // Original pictures that were moved, replaced or deleted: drop their paint operators.
+      if (content && cuts.length) {
+        try {
+          const xobjects = page.node.Resources()?.lookupMaybe(PDFName.of('XObject'), PDFDict);
+          const isImage = (name: string) => {
+            const x = xobjects?.lookup(PDFName.of(name));
+            return x instanceof PDFStream && x.dict.lookup(PDFName.of('Subtype')) === PDFName.of('Image');
+          };
+          // Pictures inside form XObjects (seq -1) are not in this stream; they are covered.
+          const removable = cuts.filter((c) => c.seq >= 0);
+          const next = removable.length ? removeImageOps(content, isImage, removable) : null;
+          if (next) {
+            content = next;
+            changed = true;
+            removable.forEach((c) => removedCuts.add(c.id));
+            removedImages += removable.length;
+          }
+        } catch {
+          /* the pictures are covered instead */
+        }
+      }
+      if (content && edits.length && input.analyzeText) {
+        try {
+          const masks = edits.flatMap((e) => layoutTextEdit(e).masks);
+          const info = masks.length ? await input.analyzeText(pageIndex) : null;
+          if (info) {
+            const res = removeGlyphsFromContent(content, info, masks);
+            if (!('error' in res) && res.removedGlyphs > 0) {
+              content = res.bytes;
+              changed = true;
+              masks.forEach((m, k) => res.removedPerRect[k] > 0 && removedMasks.add(m));
+              removedGlyphs += res.removedGlyphs;
+            }
+          }
+        } catch {
+          /* the text is covered instead */
+        }
+      }
+      if (content && changed) {
+        const ref = doc.context.register(doc.context.flateStream(content));
+        page.node.set(PDFName.of('Contents'), doc.context.obj([ref]));
       }
     }
 
@@ -383,7 +426,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
       mul(mul(translate(o.x, o.y), rotateDeg(o.rotation ?? 0)), [1, 0, 0, -1, 0, o.height]);
 
     // Edited original text first (it belongs to the page content), then everything else in z-order.
-    const ordered = [...list.filter((o) => o.type === 'textedit'), ...list.filter((o) => o.type !== 'textedit' && o.type !== 'redact')];
+    const ordered = [...list.filter(isPageEdit), ...list.filter((o) => !isPageEdit(o) && o.type !== 'redact')];
 
     for (const o of ordered) {
       switch (o.type) {
@@ -412,6 +455,13 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
           inView(boxFrame(o), () => page.drawImage(image, { x: 0, y: 0, width: o.width, height: o.height, opacity: o.opacity }));
           break;
         }
+        case 'imagecut':
+          // Its paint operator is gone; only when that was not possible is the picture covered.
+          if (!removedCuts.has(o.id)) {
+            coveredImagePages.add(pageIndex);
+            inView(boxFrame(o), () => page.drawRectangle({ x: 0, y: 0, width: o.width, height: o.height, color: hexToRgb(o.fill) }));
+          }
+          break;
         case 'whiteout':
           inView(boxFrame(o), () => page.drawRectangle({ x: 0, y: 0, width: o.width, height: o.height, color: hexToRgb(o.fill) }));
           break;
@@ -502,6 +552,11 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
   if (rightToLeft) {
     warnings.push('Right-to-left text was shaped line by line. Lines that mix it with numbers or Latin words may be ordered incorrectly.');
   }
+  if (coveredImagePages.size) {
+    warnings.push(
+      `On page ${[...coveredImagePages].map((p) => p + 1).join(', ')} a picture of the original document could not be taken out of the page and was covered instead.`,
+    );
+  }
   if (coveredPages.size) {
     warnings.push(
       `On page ${[...coveredPages].map((p) => p + 1).join(', ')} some replaced text could not be taken out of the file and was covered instead. ` +
@@ -525,7 +580,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     throw new ExportError(`The exported PDF failed validation (${e?.message ?? e}). Nothing was downloaded.`);
   }
 
-  return { bytes, pagesModified: pageIndexes.length, objectsWritten: written, flattenedPages, removedGlyphs, shapedRuns, structureChanged, warnings };
+  return { bytes, pagesModified: pageIndexes.length, objectsWritten: written, flattenedPages, removedGlyphs, removedImages, shapedRuns, structureChanged, warnings };
 }
 
 /**

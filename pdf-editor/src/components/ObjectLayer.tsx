@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Konva from 'konva';
 import { Arrow, Ellipse, Group, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Transformer } from 'react-konva';
+import { isPageEdit } from '../types/objects';
 import type { EditorObject, ImageObject, TextEditObject, TextStyle } from '../types/objects';
+import type { PageImage } from '../engines/PdfImages';
 import type { PageInfo } from '../types/pdf';
 import { arrowHeadSize } from '../engines/PdfExporter';
-import { getPdfPage } from '../engines/PdfRenderer';
+import { findPageImages, getPdfPage } from '../engines/PdfRenderer';
 import { getCachedTextModel, loadTextModel } from '../engines/PdfTextExtractor';
 import { MARK_OPACITY, markForArea, markShapes, marksForBox } from '../engines/TextHighlighter';
 import { layoutTextEdit, layoutTextObject, type TextRun } from '../engines/TextEditLayout';
 import { getState, useEditorStore } from '../store/documentStore';
+import { liftPageImage, moveObjectToPage } from '../store/imageActions';
 import { cssFont } from '../utils/fontUtils';
 import { newId } from '../utils/imageUtils';
 
@@ -73,6 +76,29 @@ function TextEditNode({ o, fontVersion }: { o: TextEditObject; fontVersion: numb
   );
 }
 
+/** The page element under a screen point, if any. */
+function pageElementAt(x: number, y: number): HTMLElement | null {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-page]')) {
+    const r = el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return el;
+  }
+  return null;
+}
+
+/** Marks the page an object would land on while it is dragged outside its own page. */
+let dropTarget: HTMLElement | null = null;
+function markDropTarget(el: HTMLElement | null) {
+  if (dropTarget === el) return;
+  if (dropTarget) dropTarget.style.outline = '';
+  dropTarget = el;
+  if (el) el.style.outline = '3px solid #2f7df6';
+}
+
+const clientPoint = (evt: MouseEvent | TouchEvent) => {
+  const t = 'changedTouches' in evt ? evt.changedTouches[0] : evt;
+  return t ? { x: t.clientX, y: t.clientY } : null;
+};
+
 const CURSORS: Partial<Record<string, string>> = { addtext: 'text', highlight: 'text', eraser: 'cell', select: 'default' };
 
 export function ObjectLayer({ page }: { page: PageInfo }) {
@@ -92,7 +118,9 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   const onText = useRef(false);
   const [draft, setDraft] = useState<EditorObject | null>(null);
 
-  const selected = objects.find((o) => o.id === selectedId && o.type !== 'textedit');
+  const selected = objects.find((o) => o.id === selectedId && !isPageEdit(o));
+  const [pdfImages, setPdfImages] = useState<PageImage[]>([]);
+  const [hoverImage, setHoverImage] = useState<string | null>(null);
   const canSelect = tool === 'select';
 
   useEffect(() => {
@@ -111,6 +139,30 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
       .catch(() => undefined);
   }, [tool, page]);
 
+  // Pictures of the original page can be picked up with the Select tool.
+  useEffect(() => {
+    if (tool !== 'select') return;
+    let dead = false;
+    findPageImages(page).then((list) => !dead && setPdfImages(list));
+    return () => {
+      dead = true;
+    };
+  }, [tool, page]);
+
+  /** The other page under the pointer while an object is dragged, with the offset between the two pages. */
+  const otherPage = (e: Konva.KonvaEventObject<DragEvent>) => {
+    const pt = clientPoint(e.evt as unknown as MouseEvent | TouchEvent);
+    const stage = e.target.getStage();
+    if (!pt || !stage) return null;
+    const src = stage.container().getBoundingClientRect();
+    if (pt.x >= src.left && pt.x <= src.right && pt.y >= src.top && pt.y <= src.bottom) return null;
+    const el = pageElementAt(pt.x, pt.y);
+    const index = el ? Number(el.dataset.page) : NaN;
+    if (!el || !Number.isInteger(index) || index === page.index) return null;
+    const dst = el.getBoundingClientRect();
+    return { el, index, dx: (src.left - dst.left) / zoom, dy: (src.top - dst.top) / zoom };
+  };
+
   const pointer = (e: Konva.KonvaEventObject<PointerEvent>) => e.target.getStage()!.getRelativePointerPosition()!;
 
   const eraseAt = (target: Konva.Node) => {
@@ -128,7 +180,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     const ts = s.toolStyle;
     switch (tool) {
       case 'select':
-        if (e.target === e.target.getStage()) s.select(null);
+        if (e.target === e.target.getStage() || e.target.name() === 'pdfimage') s.select(null);
         return;
       case 'addtext':
         return; // handled on click, so the new text field keeps the focus
@@ -234,8 +286,18 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
       },
       onMouseDown: () => canSelect && getState().select(o.id),
       onTouchStart: () => canSelect && getState().select(o.id),
+      onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => markDropTarget(otherPage(e)?.el ?? null),
       onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
         const node = e.target;
+        const to = otherPage(e);
+        markDropTarget(null);
+        if (to && o.type !== 'highlight') {
+          // Dropped on another page: the object moves there, at the place it was dropped.
+          const dx = to.dx + node.x() - ('x' in o ? o.x : 0);
+          const dy = to.dy + node.y() - ('x' in o ? o.y : 0);
+          node.position('x' in o ? { x: o.x, y: o.y } : { x: 0, y: 0 });
+          return moveObjectToPage(o.id, to.index, dx, dy);
+        }
         if ('points' in o) bake(o, node);
         else getState().updateObject(o.id, { x: node.x(), y: node.y() } as Partial<EditorObject>);
       },
@@ -260,6 +322,11 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     switch (o.type) {
       case 'textedit':
         return <TextEditNode key={o.id} o={o} fontVersion={fontVersion} />;
+      case 'imagecut': {
+        // Slightly larger than the picture, so its soft edge does not show around the cover.
+        const pad = Math.max(0.75, 1.5 / zoom);
+        return <Rect key={o.id} x={o.x} y={o.y} offsetX={pad} offsetY={pad} width={o.width + pad * 2} height={o.height + pad * 2} rotation={o.rotation} fill={o.fill} listening={false} />;
+      }
       case 'text': {
         const layout = layoutTextObject(o);
         return (
@@ -351,8 +418,12 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     : null;
 
   // Edited original text sits directly on the page, under everything the user added.
-  const edits = objects.filter((o) => o.type === 'textedit');
-  const rest = objects.filter((o) => o.type !== 'textedit');
+  const edits = objects.filter(isPageEdit);
+  const rest = objects.filter((o) => !isPageEdit(o));
+  const cutKeys = new Set(objects.map((o) => (o.type === 'imagecut' ? o.key : '')));
+  const pickable = canSelect ? pdfImages.filter((img) => !cutKeys.has(img.key)) : [];
+  // A picture that fills the page (a scan) needs a double-click, so a stray click does not pick up the whole page.
+  const isBackdrop = (img: PageImage) => img.width * img.height > page.width * page.height * 0.8;
 
   return (
     <Stage
@@ -371,6 +442,44 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     >
       <Layer>
         {edits.map((o) => renderObject(o))}
+        {pickable.map((img) => {
+          const backdrop = isBackdrop(img);
+          const hot = hoverImage === img.key;
+          const pick = () => liftPageImage(page, img);
+          return (
+            <Rect
+              key={`pdfimage${img.key}`} name="pdfimage" x={img.x} y={img.y} width={img.width} height={img.height} rotation={img.rotation}
+              fill={hot ? 'rgba(47,125,246,0.12)' : 'rgba(0,0,0,0)'} stroke={hot ? '#2f7df6' : undefined} strokeWidth={1.5 / zoom} dash={[5 / zoom, 4 / zoom]}
+              draggable={!backdrop}
+              onMouseEnter={(e) => {
+                setHoverImage(img.key);
+                const el = e.target.getStage()!.container();
+                el.style.cursor = backdrop ? 'default' : 'move';
+                el.title = backdrop ? 'Double-click to edit this full-page picture' : 'Click to select this picture, or drag it to move it';
+              }}
+              onMouseLeave={(e) => {
+                setHoverImage(null);
+                const el = e.target.getStage()!.container();
+                el.style.cursor = CURSORS[tool] ?? 'crosshair';
+                el.title = '';
+              }}
+              onDragStart={() => setHoverImage(img.key)}
+              onDragEnd={(e) => {
+                // The picture is picked up where it was and put down where the outline was dropped.
+                const node = e.target;
+                const dx = node.x() - img.x;
+                const dy = node.y() - img.y;
+                node.position({ x: img.x, y: img.y });
+                setHoverImage(null);
+                liftPageImage(page, img, dx, dy);
+              }}
+              onClick={backdrop ? undefined : pick}
+              onTap={backdrop ? undefined : pick}
+              onDblClick={pick}
+              onDblTap={pick}
+            />
+          );
+        })}
         {rest.map((o) => renderObject(o))}
         {draft && renderObject(draft, true)}
         <Transformer

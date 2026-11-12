@@ -107,3 +107,42 @@ p.drawText('Customer: Northwind Traders', { x: 60, y: 560, size: 12, font: embed
 
 writeFileSync(join(out, 'sample.pdf'), await doc.save());
 console.log(`test-assets/sample.pdf written (5 pages, embedded font: ${embeddedName})`);
+
+// ---- sample-images.pdf: two pages with pictures, for the image tools ----------------------
+import { crc32, deflateSync } from 'node:zlib';
+
+/** Minimal RGB PNG encoder for generated test pictures. */
+function png(width, height, pixel) {
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let yy = 0; yy < height; yy++) {
+    for (let xx = 0; xx < width; xx++) raw.set(pixel(xx, yy), yy * (width * 3 + 1) + 1 + xx * 3);
+  }
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body) >>> 0);
+    return Buffer.concat([len, body, crc]);
+  };
+  const head = Buffer.alloc(13);
+  head.writeUInt32BE(width, 0);
+  head.writeUInt32BE(height, 4);
+  head.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+const imgDoc = await PDFDocument.create();
+const imgFont = await imgDoc.embedFont(StandardFonts.Helvetica);
+const sunset = await imgDoc.embedPng(png(160, 100, (x, y) => [255 - y, 120 + Math.round(x / 2), 60 + y]));
+const chart = await imgDoc.embedPng(png(120, 120, (x, y) => ((x >> 4) + (y >> 4)) % 2 ? [37, 99, 235] : [226, 232, 240]));
+let ip = imgDoc.addPage([612, 792]);
+ip.drawText('Pictures in the document', { x: 72, y: 720, size: 20, font: imgFont });
+ip.drawImage(sunset, { x: 72, y: 500, width: 240, height: 150 });
+ip.drawText('Figure 1: a picture placed by the original document.', { x: 72, y: 480, size: 10, font: imgFont });
+ip.drawImage(chart, { x: 380, y: 520, width: 130, height: 130 });
+paragraph(ip, LOREM, imgFont, 11, 72, 440, 468, 15);
+ip = imgDoc.addPage([612, 792]);
+ip.drawText('Second page', { x: 72, y: 720, size: 20, font: imgFont });
+paragraph(ip, SECOND, imgFont, 11, 72, 690, 468, 15);
+writeFileSync(join(out, 'sample-images.pdf'), await imgDoc.save());

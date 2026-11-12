@@ -262,7 +262,7 @@ function ToolOptions() {
       </>
     );
   } else {
-    content = <span className={hint}>Click an object to select it · drag to move · handles resize and rotate · Delete removes · double-click a text box to retype it</span>;
+    content = <span className={hint}>Click an object to select it · drag to move · handles resize and rotate · Delete removes · double-click a text box to retype it · click or drag a picture in the PDF to edit it · drag onto another page to move it there</span>;
   }
   // Keyed by tool so the inputs of one tool are never reused for another.
   return (

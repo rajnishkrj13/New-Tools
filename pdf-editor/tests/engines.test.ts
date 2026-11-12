@@ -7,6 +7,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { EditorObject, HighlightObject, ImageAsset } from '../src/types/objects';
 import type { TextLine } from '../src/types/text';
 import { markShapes, marksForBox, rotateMark } from '../src/engines/TextHighlighter';
+import { analyzeImageOps, removeImageOps } from '../src/engines/PdfImages';
 import type { Matrix, PageInfo } from '../src/types/pdf';
 import { applyMatrix, computeViewTransform, invert, makePageInfo, mul, viewRectToPdfRect } from '../src/engines/CoordinateMapper';
 import { exportPdf, ExportError, pageInfoFromPdfLib } from '../src/engines/PdfExporter';
@@ -590,5 +591,107 @@ describe('TextHighlighter', () => {
     expect(turned.mode).toBe('highlight');
     expect(turned.rects[0].width).toBeLessThan(2);
     expect(turned.rects[0].height).toBeCloseTo(200, 5);
+  });
+});
+
+describe('PdfImages', () => {
+  const OPS = pdfjs.OPS as unknown as Record<string, number>;
+  async function withPictures() {
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const image = await doc.embedPng(PNG);
+    const page = doc.addPage([612, 792]);
+    page.drawText('Before the pictures', { x: 72, y: 720, size: 12, font });
+    page.drawImage(image, { x: 72, y: 500, width: 240, height: 150 });
+    page.drawImage(image, { x: 380, y: 520, width: 130, height: 130 });
+    page.drawText('After the pictures', { x: 72, y: 400, size: 12, font });
+    const bytes = await doc.save();
+    const pages = (await PDFDocument.load(bytes)).getPages().map((p, i) => pageInfoFromPdfLib(p, i));
+    return { bytes, pages };
+  }
+  const paintedImages = async (bytes: Uint8Array) => {
+    const page = await (await openWithPdfJs(bytes)).getPage(1);
+    const list = await page.getOperatorList();
+    return { list, count: Array.from(list.fnArray).filter((fn) => fn === OPS.paintImageXObject).length };
+  };
+
+  it('finds the pictures of a page with their place on screen', async () => {
+    const { bytes, pages } = await withPictures();
+    const found = analyzeImageOps((await paintedImages(bytes)).list, OPS, pages[0].viewTransform);
+    expect(found).toHaveLength(2);
+    expect(found[0]).toMatchObject({ key: 't0', seq: 0, total: 2 });
+    // PDF y = 500..650 on a 792pt page is 142..292 from the top.
+    expect(found[0].x).toBeCloseTo(72, 3);
+    expect(found[0].y).toBeCloseTo(142, 3);
+    expect(found[0].width).toBeCloseTo(240, 3);
+    expect(found[0].height).toBeCloseTo(150, 3);
+    expect(Math.abs(found[0].rotation)).toBeLessThan(0.001);
+    expect(found[1]).toMatchObject({ seq: 1, total: 2 });
+    expect(found[1].x).toBeCloseTo(380, 3);
+  });
+
+  it('takes a moved picture out of the page and draws it at its new place', async () => {
+    const { bytes, pages } = await withPictures();
+    const [first] = analyzeImageOps((await paintedImages(bytes)).list, OPS, pages[0].viewTransform);
+    const assets: Record<string, ImageAsset> = { img: { id: 'img', name: 'dot.png', mime: 'image/png', bytes: PNG, url: '', width: 1, height: 1 } };
+    const box = { x: first.x, y: first.y, width: first.width, height: first.height, rotation: 0 };
+    const objects: EditorObject[] = [
+      { id: 'cut', type: 'imagecut', pageIndex: 0, ...box, fill: '#ffffff', key: first.key, seq: first.seq, total: first.total },
+      { id: 'moved', type: 'image', pageIndex: 0, ...box, x: 300, y: 600, width: 120, height: 75, opacity: 1, assetId: 'img', keepRatio: true },
+    ];
+    const result = await exportPdf({ bytes, pages, objects, assets });
+    expect(result.removedImages).toBe(1);
+    expect(result.warnings.join(' ')).not.toContain('covered');
+    const out = await paintedImages(result.bytes);
+    expect(out.count).toBe(2); // the second original and the moved copy
+    const placed = analyzeImageOps(out.list, OPS, pages[0].viewTransform);
+    expect(placed.some((p) => Math.abs(p.x - 72) < 1 && Math.abs(p.y - 142) < 1)).toBe(false);
+    expect(placed.some((p) => Math.abs(p.x - 380) < 1)).toBe(true);
+    const text = await viewItems(await openWithPdfJs(result.bytes), 1);
+    expect(text.items.map((i) => i.str)).toEqual(expect.arrayContaining(['Before the pictures', 'After the pictures']));
+
+    // Deleting = the cut alone. A cut that no longer matches the page is covered, never guessed.
+    const deleted = await exportPdf({ bytes, pages, objects: [objects[0]], assets });
+    expect((await paintedImages(deleted.bytes)).count).toBe(1);
+    const stale = await exportPdf({ bytes, pages, objects: [{ ...objects[0], total: 5 } as EditorObject], assets });
+    expect(stale.removedImages).toBe(0);
+    expect((await paintedImages(stale.bytes)).count).toBe(2);
+    expect(stale.warnings.join(' ')).toContain('covered');
+  });
+
+  it('finds a picture inside a form XObject and covers it on export', async () => {
+    // A page with a picture, embedded into another document as a form and drawn at half size.
+    const inner = await PDFDocument.create();
+    inner.addPage([400, 300]).drawImage(await inner.embedPng(PNG), { x: 100, y: 50, width: 200, height: 100 });
+    const doc = await PDFDocument.create();
+    const [form] = await doc.embedPdf(await inner.save());
+    doc.addPage([612, 792]).drawPage(form, { x: 100, y: 400, width: 200, height: 150 });
+    const bytes = await doc.save();
+    const pages = (await PDFDocument.load(bytes)).getPages().map((p, i) => pageInfoFromPdfLib(p, i));
+    const found = analyzeImageOps((await paintedImages(bytes)).list, OPS, pages[0].viewTransform);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ key: 'f0', seq: -1, total: -1 });
+    // Form at (100, 400) scaled 0.5: picture at x 150..250, y 425..475 from the bottom.
+    expect(found[0].x).toBeCloseTo(150, 2);
+    expect(found[0].y).toBeCloseTo(792 - 475, 2);
+    expect(found[0].width).toBeCloseTo(100, 2);
+    expect(found[0].height).toBeCloseTo(50, 2);
+    const { key, seq, total, objId: _id, ...box } = found[0];
+    const result = await exportPdf({ bytes, pages, objects: [{ id: 'c', type: 'imagecut', pageIndex: 0, ...box, fill: '#ffffff', key, seq, total }], assets: {} });
+    expect(result.removedImages).toBe(0);
+    expect(result.warnings.join(' ')).toContain('covered');
+  });
+
+  it('removes only image operators, by position, and leaves form XObjects alone', () => {
+    const enc = new TextEncoder();
+    const content = enc.encode('q 1 0 0 1 0 0 cm /Im1 Do Q /Fm1 Do BT (Do not remove) Tj ET q /Im2 Do Q');
+    const isImage = (name: string) => name.startsWith('Im');
+    const out = new TextDecoder().decode(removeImageOps(content, isImage, [{ seq: 1, total: 2 }])!);
+    expect(out).toContain('/Im1 Do');
+    expect(out).toContain('/Fm1 Do');
+    expect(out).toContain('(Do not remove) Tj');
+    expect(out).not.toContain('/Im2');
+    expect(out.length).toBe(content.length);
+    expect(removeImageOps(content, isImage, [{ seq: 0, total: 3 }])).toBeNull();
   });
 });

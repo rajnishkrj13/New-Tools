@@ -1,5 +1,5 @@
 import {
-  AlignCenter, AlignLeft, AlignRight, Bold, BringToFront, Copy, Italic, RotateCcw, SendToBack, ShieldCheck, Trash2, TriangleAlert, Underline,
+  AlignCenter, AlignLeft, AlignRight, Bold, BringToFront, Copy, ImageUp, Italic, RotateCcw, SendToBack, ShieldCheck, Trash2, TriangleAlert, Underline,
 } from 'lucide-react';
 import type { EditorObject, MarkMode, TextStyle } from '../types/objects';
 import { MARK_OPACITY } from '../engines/TextHighlighter';
@@ -7,6 +7,8 @@ import { listFonts } from '../engines/FontManager';
 import { getCachedTextModel } from '../engines/PdfTextExtractor';
 import { getState, useEditorStore } from '../store/documentStore';
 import { findTextEdit, revertParagraph, styleParagraph } from '../store/textEditActions';
+import { moveObjectToPage, replaceImage } from '../store/imageActions';
+import { isPageEdit } from '../types/objects';
 import { IconToggle } from './FloatingTextToolbar';
 import { paragraphStyle } from './TextEditor';
 
@@ -128,6 +130,7 @@ const TITLES: Record<string, string> = {
 };
 
 function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }> }) {
+  const pageCount = useEditorStore((s) => s.pages.length);
   const update = (patch: Partial<EditorObject>, key: string) => getState().updateObject(o.id, patch, key);
   const box = 'x' in o;
   return (
@@ -136,6 +139,24 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
         <div className="text-sm font-semibold text-slate-900">{o.type === 'image' && o.signature ? 'Signature' : TITLES[o.type]}</div>
         <div className="text-[11px] text-slate-500">Page {o.pageIndex + 1}</div>
       </div>
+      {o.type === 'image' && (
+        <Section title="Picture">
+          <label className="flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            <ImageUp size={14} /> Replace image
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) replaceImage(o.id, file);
+              }}
+            />
+          </label>
+          <p className="text-[11px] leading-snug text-slate-500">Drag to move it, also onto another page. Corner handles resize, the top handle rotates.</p>
+        </Section>
+      )}
       {o.type === 'text' && (
         <Section title="Text">
           <TextControls style={o} onChange={(patch, key) => update(patch, key)} />
@@ -198,6 +219,11 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
             <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" />
             On export, page {o.pageIndex + 1} is converted to an image with this box burned in. Text, annotations and hidden content of the page are removed from the file.
           </p>
+        </Section>
+      )}
+      {o.type !== 'highlight' && pageCount > 1 && (
+        <Section title="Page">
+          <Num label="On page" value={o.pageIndex + 1} min={1} max={pageCount} suffix="" onChange={(v) => Number.isInteger(v) && v - 1 !== o.pageIndex && moveObjectToPage(o.id, v - 1)} />
         </Section>
       )}
       {box && (
@@ -286,7 +312,7 @@ function ParagraphProperties() {
 }
 
 const TIPS: Record<string, string> = {
-  select: 'Select an object on the page to change its properties here.',
+  select: 'Select an object on the page to change its properties here. Click a picture of the PDF to move, resize, replace or delete it.',
   edittext: 'Click a word, line or letter in the document to change it. Formatting options appear next to the text and here.',
   addtext: 'Click anywhere on a page to start a new text box.',
   highlight: 'Drag across text to highlight, underline or strike it through.',
@@ -305,14 +331,14 @@ export function PropertiesPanel() {
   const textSel = useEditorStore((s) => s.textSel);
   const tool = useEditorStore((s) => s.tool);
   const count = useEditorStore((s) => s.objects.length);
-  const hasContent = (selected && selected.type !== 'textedit') || textSel;
+  const hasContent = (selected && !isPageEdit(selected)) || textSel;
 
   return (
     <aside
       className={`${hasContent ? 'absolute bottom-0 right-0 top-0 z-30 flex shadow-float' : 'hidden'} w-[264px] shrink-0 flex-col overflow-y-auto border-l border-slate-200 bg-white lg:static lg:flex lg:shadow-none`}
       aria-label="Properties"
     >
-      {selected && selected.type !== 'textedit' ? (
+      {selected && !isPageEdit(selected) ? (
         <ObjectProperties o={selected} />
       ) : textSel ? (
         <ParagraphProperties />

@@ -99,6 +99,26 @@ export interface HighlightObject extends BaseObject {
   opacity: number;
 }
 
+/**
+ * A picture of the original PDF that was taken out of its page (to be moved, resized,
+ * replaced or deleted). On screen it is covered; on export its paint operator is removed.
+ */
+export interface ImageCutObject extends BaseObject {
+  type: 'imagecut';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  /** Paper colour used to cover the picture. */
+  fill: string;
+  /** Identity of the picture on its page. */
+  key: string;
+  /** Which image paint operator of the page this is (-1: not removable), and how many the page has. */
+  seq: number;
+  total: number;
+}
+
 /** Geometry of one original text line, kept so the original layout is never lost. */
 export interface OrigLine {
   text: string;
@@ -147,9 +167,13 @@ export type EditorObject =
   | PathObject
   | MaskObject
   | HighlightObject
+  | ImageCutObject
   | TextEditObject;
 
 export type ObjectType = EditorObject['type'];
+
+/** Changes to the page's own content: drawn under everything else and never selected. */
+export const isPageEdit = (o: EditorObject): o is TextEditObject | ImageCutObject => o.type === 'textedit' || o.type === 'imagecut';
 
 export interface ImageAsset {
   id: string;

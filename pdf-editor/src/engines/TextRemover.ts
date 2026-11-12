@@ -168,9 +168,21 @@ const isDelim = (c: number) =>
   c === 0x28 || c === 0x29 || c === 0x3c || c === 0x3e || c === 0x5b || c === 0x5d || c === 0x7b || c === 0x7d || c === 0x2f || c === 0x25;
 const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)$/;
 
-/** Finds every text-showing operator of a content stream with its operands and byte range. */
-export function scanShowOps(b: Uint8Array): ShowOp[] {
+/** An XObject paint operator ("/Name Do") with its byte range. */
+export interface DoOp {
+  start: number;
+  end: number;
+  /** Resource name as written in the stream, without the slash. */
+  name: string;
+}
+
+/**
+ * Finds every text-showing operator of a content stream with its operands and byte range.
+ * When `dos` is given, the XObject paint operators are collected into it as well.
+ */
+export function scanShowOps(b: Uint8Array, dos?: DoOp[]): ShowOp[] {
   const ops: ShowOp[] = [];
+  let lastName: { start: number; name: string } | null = null;
   const n = b.length;
   let i = 0;
   let operands: { start: number; value: Elem | Elem[] | null }[] = [];
@@ -246,6 +258,7 @@ export function scanShowOps(b: Uint8Array): ShowOp[] {
     } else if (c === 0x2f) {
       const start = i++;
       while (i < n && !isWs(b[i]) && !isDelim(b[i])) i++;
+      lastName = { start, name: String.fromCharCode(...b.subarray(start + 1, i)) };
       push(start, null);
     } else if (c === 0x7b || c === 0x7d || c === 0x29) {
       i++;
@@ -283,6 +296,8 @@ export function scanShowOps(b: Uint8Array): ShowOp[] {
           }
         }
         ops.push(op);
+      } else if (word === 'Do' && dos && lastName && operands[operands.length - 1]?.start === lastName.start) {
+        dos.push({ start: lastName.start, end: i, name: lastName.name });
       }
       operands = [];
       arr = null;
