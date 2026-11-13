@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { EditorObject, ImageAsset, TextObject } from '../types/objects';
+import type { EditorObject, FormValues, ImageAsset, TextObject } from '../types/objects';
 import type { DocumentInfo, PageInfo } from '../types/pdf';
-import type { ExportState, Toast, Tool, ToolStyle } from '../types/editor';
+import type { ExportState, SearchHit, Toast, Tool, ToolStyle } from '../types/editor';
 import type { EditLevel, TextSelection } from '../types/text';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from './historyStore';
 import { newId } from '../utils/imageUtils';
@@ -32,7 +32,7 @@ interface EditorState {
   autoSave: { enabled: boolean; status: 'idle' | 'saved' | 'error'; at: number | null };
   setAutoSave: (patch: Partial<EditorState['autoSave']>) => void;
   /** Puts back the edits, images and added PDFs of a saved session (no undo step). */
-  restoreSession: (objects: EditorObject[], assets: Record<string, ImageAsset>, sources: EditorState['sources']) => void;
+  restoreSession: (objects: EditorObject[], assets: Record<string, ImageAsset>, sources: EditorState['sources'], formValues?: FormValues) => void;
   /** Other PDFs whose pages were added to this document (bytes are needed again on export). */
   sources: Record<string, { name: string; bytes: Uint8Array }>;
   addSource: (id: string, name: string, bytes: Uint8Array) => void;
@@ -44,6 +44,19 @@ interface EditorState {
   exportState: ExportState;
 
   selectedId: string | null;
+  /** Further selected objects (Shift+click), all on the page of `selectedId`. */
+  extraSelected: string[];
+  /** Adds an object to the selection or takes it out again. */
+  toggleSelect: (id: string) => void;
+  selectMany: (ids: string[]) => void;
+  /** Find and replace: the panel, what is searched and where it was found. */
+  search: { open: boolean; query: string; replace: string; matchCase: boolean; hits: SearchHit[]; index: number; busy: boolean };
+  setSearch: (patch: Partial<EditorState['search']>) => void;
+  /** Values typed into the form fields the PDF already has. */
+  formValues: FormValues;
+  setFormValue: (name: string, value: string | boolean) => void;
+  pageElementsOpen: boolean;
+  setPageElementsOpen: (open: boolean) => void;
   editingTextId: string | null;
   /** A new text box that is being typed and is not part of the document yet. */
   draftText: TextObject | null;
@@ -131,6 +144,7 @@ function restore(s: EditorState, snap: Snapshot): Partial<EditorState> {
     draftText: null,
     textSel: pagesChanged || !s.textSel ? null : { ...s.textSel, editing: false },
     selectedId: s.selectedId && snap.objects.some((o) => o.id === s.selectedId) ? s.selectedId : null,
+    extraSelected: [],
   };
 }
 
@@ -148,6 +162,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   lastExport: null,
   exportState: idleExport,
   selectedId: null,
+  extraSelected: [],
+  toggleSelect: (id) =>
+    set((s) => {
+      const target = s.objects.find((o) => o.id === id);
+      const first = s.objects.find((o) => o.id === s.selectedId);
+      if (!target) return {};
+      if (!first || first.pageIndex !== target.pageIndex) return { selectedId: id, extraSelected: [] };
+      if (id === s.selectedId) return { selectedId: s.extraSelected[0] ?? null, extraSelected: s.extraSelected.slice(1) };
+      return { extraSelected: s.extraSelected.includes(id) ? s.extraSelected.filter((x) => x !== id) : [...s.extraSelected, id] };
+    }),
+  selectMany: (ids) => set({ selectedId: ids[0] ?? null, extraSelected: ids.slice(1), editingTextId: null }),
+  search: { open: false, query: '', replace: '', matchCase: false, hits: [], index: -1, busy: false },
+  setSearch: (patch) => set((s) => ({ search: { ...s.search, ...patch } })),
+  formValues: {},
+  setFormValue: (name, value) => set((s) => ({ formValues: { ...s.formValues, [name]: value }, dirty: true })),
+  pageElementsOpen: false,
+  setPageElementsOpen: (pageElementsOpen) => set({ pageElementsOpen }),
   editingTextId: null,
   draftText: null,
   setDraftText: (draftText) => set({ draftText }),
@@ -171,14 +202,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({
       doc, pages, bytes, docKey: s.docKey + 1, loading: null, error: null,
       objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false, lastExport: null, exportState: idleExport,
-      selectedId: null, editingTextId: null, editingCell: null, draftText: null, textSel: null, tool: 'select', currentPage: 0, scrollRequest: null,
+      selectedId: null, extraSelected: [], formValues: {}, editingTextId: null, editingCell: null, draftText: null, textSel: null, tool: 'select', currentPage: 0, scrollRequest: null,
+      search: { ...s.search, hits: [], index: -1 },
     }));
   },
   closeDocument: () => {
     Object.values(get().assets).forEach((a) => URL.revokeObjectURL(a.url));
     set({
       doc: null, pages: [], bytes: null, objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false,
-      lastExport: null, selectedId: null, editingTextId: null, editingCell: null, textSel: null, tool: 'select',
+      lastExport: null, selectedId: null, extraSelected: [], formValues: {}, editingTextId: null, editingCell: null, textSel: null, tool: 'select',
     });
   },
   setLoading: (loading) => set({ loading }),
@@ -187,7 +219,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   autoSave: { enabled: true, status: 'idle', at: null },
   setAutoSave: (patch) => set((s) => ({ autoSave: { ...s.autoSave, ...patch } })),
-  restoreSession: (objects, assets, sources) => set({ objects, assets, sources, dirty: objects.length > 0 }),
+  restoreSession: (objects, assets, sources, formValues = {}) =>
+    set({ objects, assets, sources, formValues, dirty: objects.length > 0 || Object.keys(formValues).length > 0 }),
   sources: {},
   addSource: (id, name, bytes) => set((s) => ({ sources: { ...s.sources, [id]: { name, bytes } } })),
   commitDoc: (objects, pages) => {
@@ -199,6 +232,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: s.doc ? { ...s.doc, numPages: pages.length } : s.doc,
       dirty: true,
       selectedId: null,
+      extraSelected: [],
       editingTextId: null,
       draftText: null,
       textSel: null,
@@ -211,10 +245,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       objects,
       dirty: true,
       selectedId: s.selectedId && objects.some((o) => o.id === s.selectedId) ? s.selectedId : null,
+      extraSelected: s.extraSelected.length ? s.extraSelected.filter((id) => objects.some((o) => o.id === id)) : s.extraSelected,
     })),
   addObject: (o, select = true) => {
     get().commit([...get().objects, o]);
-    if (select) set({ selectedId: o.id });
+    if (select) set({ selectedId: o.id, extraSelected: [] });
   },
   updateObject: (id, patch, key = null) => {
     const { objects, commit } = get();
@@ -264,7 +299,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   addAsset: (asset) => set((s) => ({ assets: { ...s.assets, [asset.id]: asset } })),
 
-  select: (selectedId) => set((s) => ({ selectedId, editingTextId: s.editingTextId && s.editingTextId !== selectedId ? null : s.editingTextId })),
+  select: (selectedId) => set((s) => ({ selectedId, extraSelected: [], editingTextId: s.editingTextId && s.editingTextId !== selectedId ? null : s.editingTextId })),
   setEditingText: (editingTextId) => set({ editingTextId }),
   setTextSel: (textSel) => set({ textSel }),
   setTool: (tool) =>
@@ -272,6 +307,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       tool,
       lastShape: ['rect', 'ellipse', 'line', 'arrow'].includes(tool) ? tool : s.lastShape,
       selectedId: tool === 'select' ? s.selectedId : null,
+      extraSelected: tool === 'select' ? s.extraSelected : [],
       editingTextId: null,
       textSel: tool === 'edittext' ? s.textSel : null,
     })),

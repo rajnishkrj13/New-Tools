@@ -9,6 +9,11 @@ import { getState, useEditorStore } from '../store/documentStore';
 import { findTextEdit, revertParagraph, styleParagraph } from '../store/textEditActions';
 import { moveObjectToPage, replaceImage } from '../store/imageActions';
 import { isPageEdit } from '../types/objects';
+import type { FieldObject, LinkObject, NoteObject, TextObject } from '../types/objects';
+import { alignSelection, deleteSelection, duplicateSelection, copySelection, removeGroup, selectedObjects, type AlignMode } from '../store/selectionActions';
+import {
+  AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignStartHorizontal, AlignStartVertical, List, ListOrdered,
+} from 'lucide-react';
 import { layoutTable, resizeTable, setColumnShare } from '../engines/TableLayout';
 import { IconToggle } from './FloatingTextToolbar';
 import { paragraphStyle } from './TextEditor';
@@ -108,6 +113,203 @@ function TextControls({ style, onChange }: { style: TextStyle; onChange: (patch:
   );
 }
 
+const ALIGN: [AlignMode, string, React.ReactNode][] = [
+  ['left', 'Align left edges', <AlignStartVertical size={15} key="l" />],
+  ['center', 'Centre horizontally', <AlignCenterVertical size={15} key="c" />],
+  ['right', 'Align right edges', <AlignEndVertical size={15} key="r" />],
+  ['top', 'Align top edges', <AlignStartHorizontal size={15} key="t" />],
+  ['middle', 'Centre vertically', <AlignCenterHorizontal size={15} key="m" />],
+  ['bottom', 'Align bottom edges', <AlignEndHorizontal size={15} key="b" />],
+];
+
+/** Six alignment buttons: several objects line up with each other, one object with its page. */
+function AlignRow() {
+  return (
+    <div className="flex justify-between" role="group" aria-label="Align">
+      {ALIGN.map(([mode, title, icon]) => (
+        <IconToggle key={mode} title={title} onClick={() => alignSelection(mode)}>
+          {icon}
+        </IconToggle>
+      ))}
+    </div>
+  );
+}
+
+/** Panel for a selection of several objects. */
+function MultiProperties({ count }: { count: number }) {
+  const btn = 'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50';
+  return (
+    <>
+      <div className="border-b border-slate-100 px-4 py-3">
+        <div className="text-sm font-semibold text-slate-900">{count} objects selected</div>
+        <div className="text-[11px] text-slate-500">Drag one to move them all. Shift+click adds or removes an object.</div>
+      </div>
+      <Section title="Align with each other">
+        <AlignRow />
+      </Section>
+      <Section title="Arrange">
+        <div className="flex gap-2">
+          <button type="button" className={btn} onClick={copySelection}><Copy size={14} /> Copy</button>
+          <button type="button" className={btn} onClick={duplicateSelection}><Copy size={14} /> Duplicate</button>
+        </div>
+        <button type="button" className={`${btn} w-full !border-red-200 !text-red-600 hover:!bg-red-50`} onClick={deleteSelection}><Trash2 size={14} /> Delete all</button>
+      </Section>
+    </>
+  );
+}
+
+/** Turns every non-empty line of a text box into a list item, or back into plain lines. */
+function toggleList(o: TextObject, ordered: boolean): Partial<TextObject> {
+  const lines = o.text.split('\n');
+  const marker = /^\s*(?:[-*\u2022]|\d+[.)])\s+/;
+  const isList = lines.filter((l) => l.trim()).every((l) => (ordered ? /^\s*\d+[.)]\s+/ : /^\s*[-*\u2022]\s+/).test(l));
+  let n = 0;
+  const text = lines
+    .map((l) => {
+      if (!l.trim()) return l;
+      const plain = l.replace(marker, '');
+      return isList ? plain : ordered ? `${++n}. ${plain}` : `- ${plain}`;
+    })
+    .join('\n');
+  return { text, rich: true };
+}
+
+function LinkProperties({ o, update }: { o: LinkObject; update: (patch: Partial<EditorObject>, key: string) => void }) {
+  const pages = useEditorStore((s) => s.pages);
+  const toPage = !!o.targetPageId;
+  return (
+    <Section title="Link">
+      <label className="flex items-center justify-between text-xs text-slate-600">
+        <span>Opens</span>
+        <select
+          value={toPage ? 'page' : 'url'}
+          onChange={(e) => update({ targetPageId: e.target.value === 'page' ? pages[0]?.id : null }, 'kind')}
+          className="h-7 rounded-md border border-slate-200 px-1 text-xs"
+        >
+          <option value="url">A web address</option>
+          <option value="page">A page of this document</option>
+        </select>
+      </label>
+      {toPage ? (
+        <label className="flex items-center justify-between text-xs text-slate-600">
+          <span>Page</span>
+          <select value={o.targetPageId ?? ''} onChange={(e) => update({ targetPageId: e.target.value }, 'target')} className="h-7 rounded-md border border-slate-200 px-1 text-xs">
+            {pages.map((p) => (
+              <option key={p.id} value={p.id}>
+                Page {p.index + 1}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <label className="block text-xs text-slate-600">
+          Address
+          <input
+            id="link-url"
+            type="url"
+            placeholder="https://example.com"
+            value={o.url}
+            onChange={(e) => update({ url: e.target.value }, 'url')}
+            className="mt-1 h-8 w-full rounded-md border border-slate-200 px-2 text-xs text-slate-800"
+          />
+        </label>
+      )}
+      {o.sourceRef && (
+        <>
+          <p className="text-[11px] leading-snug text-slate-500">This link was already in the document. Changes replace it on export.</p>
+          <button
+            type="button"
+            onClick={() => {
+              update({ removed: true }, 'removed');
+              getState().select(null);
+            }}
+            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50"
+          >
+            <Trash2 size={14} /> Remove this link from the document
+          </button>
+        </>
+      )}
+      <p className="text-[11px] leading-snug text-slate-500">The blue outline is only shown here. In the exported PDF the area is clickable and invisible.</p>
+    </Section>
+  );
+}
+
+function NoteProperties({ o, update }: { o: NoteObject; update: (patch: Partial<EditorObject>, key: string) => void }) {
+  const area = 'mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-800';
+  return (
+    <Section title="Comment">
+      <label className="block text-xs text-slate-600">
+        Name
+        <input value={o.author} placeholder="Your name" onChange={(e) => update({ author: e.target.value }, 'author')} className="mt-1 h-8 w-full rounded-md border border-slate-200 px-2 text-xs text-slate-800" />
+      </label>
+      <label className="block text-xs text-slate-600">
+        Comment
+        <textarea id="note-text" rows={4} value={o.text} onChange={(e) => update({ text: e.target.value }, 'text')} className={area} />
+      </label>
+      {o.replies.map((r, i) => (
+        <div key={i} className="rounded-md bg-slate-50 p-2">
+          <div className="flex items-center gap-1.5">
+            <input
+              aria-label={`Reply ${i + 1} name`}
+              value={r.author}
+              placeholder="Name"
+              onChange={(e) => update({ replies: o.replies.map((x, k) => (k === i ? { ...x, author: e.target.value } : x)) }, `ra${i}`)}
+              className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 px-2 text-xs"
+            />
+            <button type="button" aria-label={`Delete reply ${i + 1}`} onClick={() => update({ replies: o.replies.filter((_, k) => k !== i) }, 'rdel')} className="rounded p-1 text-slate-500 hover:bg-slate-200">
+              <Trash2 size={13} />
+            </button>
+          </div>
+          <textarea
+            aria-label={`Reply ${i + 1}`}
+            rows={2}
+            value={r.text}
+            placeholder="Reply"
+            onChange={(e) => update({ replies: o.replies.map((x, k) => (k === i ? { ...x, text: e.target.value } : x)) }, `rt${i}`)}
+            className={area}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => update({ replies: [...o.replies, { author: o.author, text: '' }] }, 'radd')}
+        className="flex h-8 w-full items-center justify-center rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50"
+      >
+        Add a reply
+      </button>
+      <Color label="Note colour" value={o.color} onChange={(v) => update({ color: v }, 'color')} />
+    </Section>
+  );
+}
+
+function FieldProperties({ o, update }: { o: FieldObject; update: (patch: Partial<EditorObject>, key: string) => void }) {
+  const clash = useEditorStore((s) => s.objects.some((x) => x.type === 'field' && x.id !== o.id && x.name === o.name));
+  return (
+    <Section title={o.kind === 'checkbox' ? 'Check box' : 'Text field'}>
+      <label className="block text-xs text-slate-600">
+        Field name
+        <input value={o.name} onChange={(e) => update({ name: e.target.value.replace(/[.\s]+/g, '_') }, 'name')} className="mt-1 h-8 w-full rounded-md border border-slate-200 px-2 text-xs text-slate-800" />
+      </label>
+      {(clash || !o.name) && <p className="rounded-md bg-amber-50 p-2 text-[11px] text-amber-800">{o.name ? 'Another field already has this name.' : 'A field needs a name.'} Each field needs its own name.</p>}
+      {o.kind === 'checkbox' ? (
+        <label className="flex items-center justify-between text-xs text-slate-600">
+          <span>Ticked</span>
+          <input type="checkbox" checked={o.checked} onChange={(e) => update({ checked: e.target.checked }, 'checked')} />
+        </label>
+      ) : (
+        <>
+          <label className="block text-xs text-slate-600">
+            Filled-in text (optional)
+            <input value={o.value} onChange={(e) => update({ value: e.target.value }, 'value')} className="mt-1 h-8 w-full rounded-md border border-slate-200 px-2 text-xs text-slate-800" />
+          </label>
+          <Num label="Text size" value={o.fontSize} min={5} max={48} onChange={(v) => update({ fontSize: v }, 'fs')} />
+        </>
+      )}
+      <p className="text-[11px] leading-snug text-slate-500">In the exported PDF this is a real form field that anyone can fill in with a PDF reader.</p>
+    </Section>
+  );
+}
+
 function Actions({ o }: { o: EditorObject }) {
   const s = getState();
   const btn = 'flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50';
@@ -121,6 +323,17 @@ function Actions({ o }: { o: EditorObject }) {
         {o.type !== 'highlight' && <button type="button" className={btn} onClick={() => s.duplicateObject(o.id)}><Copy size={14} /> Duplicate</button>}
         <button type="button" className={`${btn} !border-red-200 !text-red-600 hover:!bg-red-50`} onClick={() => s.removeObject(o.id)}><Trash2 size={14} /> Delete</button>
       </div>
+      {o.type !== 'highlight' && (
+        <div>
+          <div className="mb-1 text-[11px] text-slate-500">Align on the page</div>
+          <AlignRow />
+        </div>
+      )}
+      {o.groupId && (
+        <button type="button" className={`${btn} w-full !flex-none !border-red-200 !text-red-600 hover:!bg-red-50`} onClick={() => removeGroup(o.groupId!)}>
+          <Trash2 size={14} /> Delete it on all pages
+        </button>
+      )}
     </Section>
   );
 }
@@ -128,6 +341,7 @@ function Actions({ o }: { o: EditorObject }) {
 const TITLES: Record<string, string> = {
   text: 'Text box', image: 'Image', rect: 'Rectangle', ellipse: 'Circle', line: 'Line', arrow: 'Arrow', path: 'Drawing',
   whiteout: 'Whiteout', redact: 'Secure redaction', highlight: 'Text mark', table: 'Table',
+  link: 'Link', note: 'Comment', field: 'Form field',
 };
 
 function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }> }) {
@@ -192,8 +406,29 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
       {o.type === 'text' && (
         <Section title="Text">
           <TextControls style={o} onChange={(patch, key) => update(patch, key)} />
+          <div className="flex items-center justify-between text-xs text-slate-600">
+            <span>List</span>
+            <span className="flex gap-1">
+              <IconToggle title="Bulleted list" onClick={() => update(toggleList(o, false), 'list')}><List size={15} /></IconToggle>
+              <IconToggle title="Numbered list" onClick={() => update(toggleList(o, true), 'olist')}><ListOrdered size={15} /></IconToggle>
+            </span>
+          </div>
+          <label className="flex items-center justify-between text-xs text-slate-600">
+            <span>Formatting marks</span>
+            <input type="checkbox" checked={!!o.rich} onChange={(e) => update({ rich: e.target.checked }, 'rich')} />
+          </label>
+          {o.rich && (
+            <p className="text-[11px] leading-snug text-slate-500">
+              Double-click the box and type <code>**bold**</code>, <code>*italic*</code>, or start a line with <code>- </code> or <code>1. </code> for a list.
+            </p>
+          )}
+          {o.fields && <p className="text-[11px] leading-snug text-slate-500">{'{page}'}, {'{pages}'}, {'{date}'} and {'{file}'} are filled in on each page.</p>}
+          {o.frame && <Color label="Frame colour" value={o.frame.color} onChange={(v) => update({ frame: { ...o.frame!, color: v } }, 'frame')} />}
         </Section>
       )}
+      {o.type === 'link' && <LinkProperties o={o} update={update} />}
+      {o.type === 'note' && <NoteProperties o={o} update={update} />}
+      {o.type === 'field' && <FieldProperties o={o} update={update} />}
       {(o.type === 'rect' || o.type === 'ellipse') && (
         <Section title="Appearance">
           <label className="flex items-center justify-between text-xs text-slate-600">
@@ -356,6 +591,10 @@ const TIPS: Record<string, string> = {
   ellipse: 'Drag on the page to draw a circle or ellipse.',
   line: 'Drag on the page to draw a line.',
   arrow: 'Drag on the page to draw an arrow.',
+  link: 'Drag over the area that should be clickable. Links already in the document are outlined in green.',
+  note: 'Click on the page to place a comment.',
+  textfield: 'Drag on the page to add a fillable text field.',
+  checkbox: 'Click on the page to add a check box.',
 };
 
 export function PropertiesPanel() {
@@ -363,6 +602,8 @@ export function PropertiesPanel() {
   const textSel = useEditorStore((s) => s.textSel);
   const tool = useEditorStore((s) => s.tool);
   const count = useEditorStore((s) => s.objects.length);
+  const extra = useEditorStore((s) => s.extraSelected.length);
+  const many = extra > 0 ? selectedObjects().length : 0;
   const hasContent = (selected && !isPageEdit(selected)) || textSel;
 
   return (
@@ -370,7 +611,9 @@ export function PropertiesPanel() {
       className={`${hasContent ? 'absolute bottom-0 right-0 top-0 z-30 flex shadow-float' : 'hidden'} w-[264px] shrink-0 flex-col overflow-y-auto border-l border-slate-200 bg-white lg:static lg:flex lg:shadow-none`}
       aria-label="Properties"
     >
-      {selected && !isPageEdit(selected) ? (
+      {many > 1 ? (
+        <MultiProperties count={many} />
+      ) : selected && !isPageEdit(selected) ? (
         <ObjectProperties o={selected} />
       ) : textSel ? (
         <ParagraphProperties />
@@ -382,7 +625,7 @@ export function PropertiesPanel() {
             {count === 0 ? 'No edits yet.' : `${count} edit${count > 1 ? 's' : ''} in this document.`}
           </p>
           <dl className="mt-4 space-y-1.5 text-[11px] text-slate-500">
-            {[['Ctrl + Z', 'Undo'], ['Ctrl + Y', 'Redo'], ['Delete', 'Remove selection'], ['Esc', 'Leave tool / cancel'], ['Ctrl + D', 'Duplicate'], ['Arrows', 'Nudge 1 pt (Shift: 10)']].map(([k, v]) => (
+            {[['Ctrl + Z', 'Undo'], ['Ctrl + Y', 'Redo'], ['Delete', 'Remove selection'], ['Esc', 'Leave tool / cancel'], ['Ctrl + D', 'Duplicate'], ['Ctrl + C / V', 'Copy / paste'], ['Shift + click', 'Select several'], ['Ctrl + A', 'Select all on page'], ['Ctrl + F', 'Find and replace'], ['Arrows', 'Nudge 1 pt (Shift: 10)']].map(([k, v]) => (
               <div key={k} className="flex justify-between">
                 <dt><kbd className="rounded border border-slate-200 bg-slate-50 px-1 py-0.5 font-mono text-[10px] text-slate-600">{k}</kbd></dt>
                 <dd>{v}</dd>

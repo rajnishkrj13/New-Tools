@@ -2,7 +2,7 @@ import * as pdfjs from 'pdfjs-dist';
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { DocumentInfo, PageInfo, Rect } from '../types/pdf';
-import { makePageInfo } from './CoordinateMapper';
+import { applyMatrix, makePageInfo } from './CoordinateMapper';
 import { analyzeOperatorList, type TextOpInfo } from './TextRemover';
 import { analyzeImageOps, type PageImage } from './PdfImages';
 import type { ImageAsset } from '../types/objects';
@@ -298,4 +298,71 @@ export async function rasterizePage(info: PageInfo, redactions: Rect[]): Promise
   release(canvas);
   if (!blob) throw new Error('The page could not be converted to an image');
   return new Uint8Array(await blob.arrayBuffer());
+}
+
+/** Upright view-space box of an annotation rectangle given in PDF user space. */
+function annotationBox(info: PageInfo, rect: number[]): Rect {
+  const [ax, ay] = applyMatrix(info.viewTransform, rect[0], rect[1]);
+  const [bx, by] = applyMatrix(info.viewTransform, rect[2], rect[3]);
+  return { x: Math.min(ax, bx), y: Math.min(ay, by), width: Math.abs(bx - ax), height: Math.abs(by - ay) };
+}
+
+export interface PageLink extends Rect {
+  /** Annotation reference in the source file, for example "12R". */
+  ref: string;
+  url: string;
+}
+
+/** Web links the original page already has. Only pages of the main document can have theirs edited. */
+export async function findPageLinks(info: PageInfo): Promise<PageLink[]> {
+  if (info.source !== 'main') return [];
+  try {
+    const page = await getPdfPage(info);
+    const annots: any[] = page ? await page.getAnnotations() : [];
+    return annots
+      .filter((a) => a.subtype === 'Link' && (a.url || a.unsafeUrl) && Array.isArray(a.rect))
+      .map((a) => ({ ...annotationBox(info, a.rect), ref: String(a.id), url: String(a.url || a.unsafeUrl) }));
+  } catch {
+    return [];
+  }
+}
+
+export interface PageFormField extends Rect {
+  /** Unique per widget (a radio group has one widget per choice). */
+  key: string;
+  name: string;
+  kind: 'text' | 'checkbox' | 'radio' | 'choice';
+  /** Value stored in the file. */
+  value: string | boolean;
+  /** For radio buttons and check boxes: the value this widget stands for. */
+  exportValue: string;
+  options: { value: string; label: string }[];
+  multiline: boolean;
+  readOnly: boolean;
+}
+
+/** Fillable fields the original page already has (main document only). */
+export async function findFormFields(info: PageInfo): Promise<PageFormField[]> {
+  if (info.source !== 'main') return [];
+  try {
+    const page = await getPdfPage(info);
+    const annots: any[] = page ? await page.getAnnotations() : [];
+    const out: PageFormField[] = [];
+    for (const a of annots) {
+      if (a.subtype !== 'Widget' || !a.fieldName || !Array.isArray(a.rect) || a.pushButton || a.hidden) continue;
+      const base = { ...annotationBox(info, a.rect), key: String(a.id), name: String(a.fieldName), readOnly: !!a.readOnly, multiline: !!a.multiLine };
+      const exportValue = String(a.exportValue ?? a.buttonValue ?? 'Yes');
+      if (a.fieldType === 'Tx') out.push({ ...base, kind: 'text', value: String(a.fieldValue ?? ''), exportValue: '', options: [] });
+      else if (a.fieldType === 'Btn' && a.checkBox) out.push({ ...base, kind: 'checkbox', value: !!a.fieldValue && a.fieldValue !== 'Off', exportValue, options: [] });
+      else if (a.fieldType === 'Btn' && a.radioButton) out.push({ ...base, kind: 'radio', value: String(a.fieldValue ?? ''), exportValue, options: [] });
+      else if (a.fieldType === 'Ch') {
+        const value = Array.isArray(a.fieldValue) ? String(a.fieldValue[0] ?? '') : String(a.fieldValue ?? '');
+        const options = (a.options ?? []).map((o: any) => ({ value: String(o.exportValue ?? o.displayValue), label: String(o.displayValue ?? o.exportValue) }));
+        out.push({ ...base, kind: 'choice', value, exportValue: '', options });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }

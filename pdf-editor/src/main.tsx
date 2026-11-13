@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles/globals.css';
 import { installBundledFonts } from './engines/bundledFonts';
-import { invalidateLayouts } from './engines/TextEditLayout';
+import { invalidateLayouts, setFieldContext } from './engines/TextEditLayout';
 import { exportPdf } from './engines/PdfExporter';
 import { rasterizePage } from './engines/PdfRenderer';
 import { getCachedTextModel } from './engines/PdfTextExtractor';
@@ -20,6 +20,8 @@ installBundledFonts(() => {
 });
 
 initAutoSave();
+// {page} / {pages} / {file} in headers and footers follow the document.
+useEditorStore.subscribe((s) => setFieldContext(s.pages.length, s.doc?.fileName ?? ''));
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

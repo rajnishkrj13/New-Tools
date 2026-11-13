@@ -25,6 +25,7 @@ export async function buildPdf(showDialog: boolean): Promise<Uint8Array | null> 
       pages: fresh.pages,
       objects: fresh.objects,
       assets: fresh.assets,
+      formValues: fresh.formValues,
       sources: Object.fromEntries(Object.entries(fresh.sources).map(([id, s]) => [id, s.bytes])),
       rasterizePage: (pageIndex, redactions) => rasterizePage(fresh.pages[pageIndex], redactions),
       analyzeText: (pageIndex) => analyzeTextOps(fresh.pages[pageIndex]),

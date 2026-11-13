@@ -7,6 +7,8 @@ import { IMAGE_TYPES } from '../utils/validationUtils';
 import { InlineTextEditor } from './InlineTextEditor';
 import { TableCellEditor } from './TableCellEditor';
 import { ObjectLayer } from './ObjectLayer';
+import { FormLayer } from './FormLayer';
+import { SearchHighlights } from './SearchPanel';
 import { TextEditLayer } from './TextEditor';
 
 /**
@@ -130,6 +132,8 @@ export const PdfPage = memo(function PdfPage({ page }: { page: PageInfo }) {
         </div>
       )}
       {visible && <ObjectLayer page={page} />}
+      {visible && <FormLayer page={page} />}
+      <SearchHighlights page={page} />
       {visible && tool === 'edittext' && <TextEditLayer page={page} />}
       {editing && <InlineTextEditor key={editing.id} obj={editing} isNew={!!isNew} />}
       {cellTable && editingCell && (

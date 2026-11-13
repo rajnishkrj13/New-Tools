@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 import { getState } from '../store/documentStore';
+import { closeSearch, openSearch } from '../store/searchActions';
+import {
+  copySelection, cutSelection, deleteSelection, duplicateSelection, hasClipboard, nudgeSelection, pasteClipboard, selectAllOnPage, selectedObjects,
+} from '../store/selectionActions';
 import { hasUnsavedWork } from './useAutoSave';
 
 const isTyping = (el: EventTarget | null) => {
@@ -31,9 +35,16 @@ export function useKeyboardShortcuts() {
         s.redo();
         return;
       }
+      if (mod && key === 'f') {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
       if (e.key === 'Escape') {
         if (typing) return; // editors handle Escape themselves
         if (s.signatureOpen) s.setSignatureOpen(false);
+        else if (s.pageElementsOpen) s.setPageElementsOpen(false);
+        else if (s.search.open) closeSearch();
         else if (s.textSel) s.setTextSel(null);
         else if (s.selectedId) s.select(null);
         else if (s.tool !== 'select') s.setTool('select');
@@ -50,24 +61,34 @@ export function useKeyboardShortcuts() {
         s.zoomBy(1 / 1.2);
         return;
       }
-      const selected = s.objects.find((o) => o.id === s.selectedId);
-      if (!selected) return;
+      if (mod && key === 'v') {
+        if (!hasClipboard()) return;
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if (mod && key === 'a') {
+        e.preventDefault();
+        selectAllOnPage();
+        return;
+      }
+      if (!selectedObjects().length) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        s.removeObject(selected.id);
+        deleteSelection();
       } else if (mod && key === 'd') {
         e.preventDefault();
-        s.duplicateObject(selected.id);
+        duplicateSelection();
+      } else if (mod && key === 'c') {
+        e.preventDefault();
+        copySelection();
+      } else if (mod && key === 'x') {
+        e.preventDefault();
+        cutSelection();
       } else if (e.key.startsWith('Arrow')) {
         e.preventDefault();
         const d = e.shiftKey ? 10 : 1;
-        const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
-        const dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
-        if ('points' in selected) {
-          s.updateObject(selected.id, { points: selected.points.map((v, i) => v + (i % 2 ? dy : dx)) } as any, 'nudge');
-        } else if ('x' in selected) {
-          s.updateObject(selected.id, { x: selected.x + dx, y: selected.y + dy }, 'nudge');
-        }
+        nudgeSelection(e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0, e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0);
       }
     };
     const onUnload = (e: BeforeUnloadEvent) => {

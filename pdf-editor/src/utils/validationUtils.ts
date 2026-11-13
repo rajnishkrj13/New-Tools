@@ -22,6 +22,7 @@ const finite = (...v: number[]) => v.every((n) => Number.isFinite(n));
 /** Checks that every object can be exported. Returns human-readable problems (empty = OK). */
 export function validateObjects(objects: EditorObject[], pages: PageInfo[], assets: Record<string, ImageAsset>): string[] {
   const problems: string[] = [];
+  const fieldNames = new Set<string>();
   for (const o of objects) {
     const where = `page ${o.pageIndex + 1}`;
     if (!pages[o.pageIndex]) {
@@ -45,6 +46,17 @@ export function validateObjects(objects: EditorObject[], pages: PageInfo[], asse
         break;
       case 'highlight':
         if (!o.rects.length || !o.rects.every((r) => finite(r.x, r.y, r.width, r.height, r.base))) problems.push(`A text mark on ${where} has an invalid position.`);
+        break;
+      case 'link':
+        // Only addresses a reader can safely open; a script must never be stored as a link.
+        if (/^\s*(javascript|data|vbscript):/i.test(o.url)) problems.push(`A link on ${where} uses an address type that is not allowed.`);
+        if (!finite(o.x, o.y, o.width, o.height)) problems.push(`A link on ${where} has an invalid size.`);
+        break;
+      case 'field':
+        if (!o.name.trim()) problems.push(`A form field on ${where} has no name.`);
+        else if (fieldNames.has(o.name)) problems.push(`Two form fields are both named "${o.name}". Give each field its own name.`);
+        fieldNames.add(o.name);
+        if (!finite(o.x, o.y, o.width, o.height)) problems.push(`A form field on ${where} has an invalid size.`);
         break;
       case 'textedit':
         if (!o.orig.length) problems.push(`A text edit on ${where} lost its original layout.`);

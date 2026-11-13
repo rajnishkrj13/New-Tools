@@ -23,7 +23,7 @@ The production build adds a Content-Security-Policy that blocks connections to o
 
 ```bash
 npm run make-samples   # writes test-assets/sample.pdf (5 pages) and sample-images.pdf (pictures)
-npm test               # 33 engine tests: coordinates, reflow, history, export, fonts, text removal, shaping, page tools, text marks, pictures, tables
+npm test               # 47 tests: engines (coordinates, reflow, export, fonts, shaping, page tools) and features (search, links, comments, forms, stamps, lists)
 npm run typecheck
 ```
 
@@ -134,3 +134,26 @@ after the current page). All of it is undoable, and edits stay on their page.
   export with an error rather than being dropped; upload a font that contains them.
 - Text that is sideways on screen cannot be edited in place.
 - Encrypted PDFs can be viewed but not saved.
+
+## Find, links, comments, forms and page elements
+
+- **Find and replace** (Find button or Ctrl+F): searches the PDF's text as it currently reads and
+  the text boxes you added. Replace all is one undo step. A match must lie within one line.
+- **Links** (Link tool): drag an area, then give it a web address or a page of the document.
+  Links the PDF already has are outlined in green with the Link tool; click one to change or remove it.
+- **Comments** (Comment tool): a sticky note with a name, text and replies. Exported as a standard
+  PDF note with its own icon.
+- **Forms**: fields the PDF already has can be filled in directly on the page (Select tool).
+  The Form tool adds new text fields and check boxes, which become real PDF form fields.
+- **Stamp button**: header, footer and page numbers ({page}, {pages}, {date}, {file}), watermark,
+  and stamps such as APPROVED. Each becomes a normal text box on its pages; "Delete it on all
+  pages" removes the whole set.
+- **Lists and mixed styles**: in a text box, the list buttons or "Formatting marks" turn on
+  `- ` / `1. ` list items, `**bold**` and `*italic*`.
+- **Selection**: Shift+click selects several objects on a page (move together, align, copy,
+  delete). Ctrl+C / Ctrl+X / Ctrl+V, Ctrl+A, Ctrl+D. Objects snap to the page and to each other
+  while dragged, with a guide line; hold Alt to move freely.
+
+Limits: comments already in a PDF cannot be edited; form fields and links of pages added from
+another PDF are not editable; several selected objects can be moved but not resized together;
+the clipboard is internal to the editor.

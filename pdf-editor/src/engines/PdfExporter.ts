@@ -5,6 +5,12 @@ import {
   PDFArray,
   PDFDict,
   PDFStream,
+  PDFCheckBox,
+  PDFDropdown,
+  PDFOptionList,
+  PDFRadioGroup,
+  PDFString,
+  PDFTextField,
   PDFDocument,
   PDFFont,
   PDFHexString,
@@ -37,14 +43,14 @@ import {
 } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { isPageEdit } from '../types/objects';
-import type { EditorObject, ImageAsset, ImageCutObject, TextEditObject, TextStyle } from '../types/objects';
+import type { EditorObject, FormValues, ImageAsset, ImageCutObject, TextEditObject, TextStyle } from '../types/objects';
 import { markShapes } from './TextHighlighter';
 import { removeImageOps } from './PdfImages';
 import { layoutTable } from './TableLayout';
 import type { Matrix, PageInfo, Rect } from '../types/pdf';
-import { FLIP_Y, computeViewTransform, invert, makePageInfo, mul, rotateDeg, translate } from './CoordinateMapper';
+import { FLIP_Y, applyMatrix, computeViewTransform, invert, makePageInfo, mul, rotateDeg, translate } from './CoordinateMapper';
 import { FALLBACK_FONT_ID, getFont, hasBundledFont, loadBundledFont } from './FontManager';
-import { layoutTextEdit, layoutTextObject, type TextRun } from './TextEditLayout';
+import { layoutTextEdit, layoutTextObject, runStyle, type TextRun } from './TextEditLayout';
 import { removeGlyphsFromContent, type TextOpInfo } from './TextRemover';
 import { getShaper, isRightToLeft, needsShaping, type Shaper } from './TextShaper';
 import { measureText } from '../utils/fontUtils';
@@ -72,6 +78,8 @@ export interface ExportInput {
   assets: Record<string, ImageAsset>;
   /** Bytes of the other PDFs that pages were added from, by source id. */
   sources?: Record<string, Uint8Array>;
+  /** Values for the form fields the PDF already has, by field name. */
+  formValues?: FormValues;
   /**
    * Glyph positions of a page's own text operators (from PDF.js). When given, edited
    * original text is deleted from the file; without it the text is only covered.
@@ -103,6 +111,18 @@ const STANDARD: Record<string, [StandardFonts, StandardFonts, StandardFonts, Sta
   Times: [StandardFonts.TimesRoman, StandardFonts.TimesRomanBold, StandardFonts.TimesRomanItalic, StandardFonts.TimesRomanBoldItalic],
   Courier: [StandardFonts.Courier, StandardFonts.CourierBold, StandardFonts.CourierOblique, StandardFonts.CourierBoldOblique],
 };
+
+/** Colour as three numbers from 0 to 1, for annotation dictionaries. */
+function hexToTriple(hex: string): [number, number, number] {
+  const c = hexToRgb(hex);
+  return [c.red, c.green, c.blue].map((v) => Math.round(v * 1000) / 1000) as [number, number, number];
+}
+
+/** A web address a link may open. Addresses without a scheme get https://. */
+export function normalizeUrl(url: string): string {
+  const u = url.trim();
+  return /^[a-z][a-z0-9+.-]*:/i.test(u) ? u : `https://${u}`;
+}
 
 export function hexToRgb(hex: string) {
   const h = hex.replace('#', '');
@@ -266,6 +286,17 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
   const coveredImagePages = new Set<number>();
   let shapedRuns = 0;
   let written = 0;
+  let formTouched = false;
+  const addAnnotation = (pg: PDFPage, dict: PDFDict): PDFRef => {
+    const ref = doc.context.register(dict);
+    let annots = pg.node.Annots();
+    if (!annots) {
+      annots = doc.context.obj([]);
+      pg.node.set(PDFName.of('Annots'), annots);
+    }
+    annots.push(ref);
+    return ref;
+  };
 
   for (let n = 0; n < pageIndexes.length; n++) {
     const pageIndex = pageIndexes[n];
@@ -423,6 +454,13 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
       }
     };
 
+    /** Upright box in view space -> [x1, y1, x2, y2] in PDF user space (annotation rectangles). */
+    const pdfRect = (o: { x: number; y: number; width: number; height: number }): [number, number, number, number] => {
+      const [ax, ay] = applyMatrix(toPdf, o.x, o.y);
+      const [bx, by] = applyMatrix(toPdf, o.x + o.width, o.y + o.height);
+      return [Math.min(ax, bx), Math.min(ay, by), Math.max(ax, bx), Math.max(ay, by)];
+    };
+
     const boxFrame = (o: { x: number; y: number; height: number; rotation?: number }): Matrix =>
       mul(mul(translate(o.x, o.y), rotateDeg(o.rotation ?? 0)), [1, 0, 0, -1, 0, o.height]);
 
@@ -447,8 +485,90 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
         case 'text': {
           const layout = layoutTextObject(o);
           const base = mul(translate(o.x, o.y), rotateDeg(o.rotation));
-          const pieces = await Promise.all(layout.lines.map((l) => piecesFor(l.text, o, pageIndex)));
-          if (pieces.every(Boolean)) layout.lines.forEach((line, k) => line.text.trim() && drawRun(base, line, pieces[k]!, o));
+          if (o.frame) {
+            const f = o.frame;
+            inView(boxFrame({ x: o.x, y: o.y, height: layout.height, rotation: o.rotation }), () =>
+              page.drawRectangle({
+                x: -f.padding, y: -f.padding, width: o.width + f.padding * 2, height: layout.height + f.padding * 2,
+                borderColor: hexToRgb(f.color), borderWidth: f.width, borderOpacity: o.opacity,
+              }),
+            );
+          }
+          // Runs of a formatted text box can be bold or italic on their own.
+          const pieces = await Promise.all(layout.lines.map((l) => piecesFor(l.text, runStyle(o, l), pageIndex)));
+          if (pieces.every(Boolean)) layout.lines.forEach((line, k) => line.text.trim() && drawRun(base, line, pieces[k]!, runStyle(o, line)));
+          break;
+        }
+        case 'link': {
+          // An edited or deleted link of the original document: take the old annotation out first.
+          const old = o.sourceRef ? /^(\d+)R(\d+)?$/.exec(o.sourceRef) : null;
+          if (old) {
+            const ref = PDFRef.of(Number(old[1]), Number(old[2] ?? 0));
+            const annots = page.node.Annots();
+            const at = annots ? annots.asArray().indexOf(ref) : -1;
+            if (annots && at >= 0) annots.remove(at);
+          }
+          if (o.removed) break;
+          const target = o.targetPageId ? input.pages.findIndex((p) => p.id === o.targetPageId) : -1;
+          const dict: Record<string, unknown> = { Type: 'Annot', Subtype: 'Link', Rect: pdfRect(o), Border: [0, 0, 0] };
+          if (target >= 0) dict.Dest = [doc.getPage(target).ref, 'Fit'];
+          else if (o.url.trim()) dict.A = { Type: 'Action', S: 'URI', URI: PDFString.of(normalizeUrl(o.url)) };
+          else {
+            warnings.push(`A link on page ${pageIndex + 1} has no address and was left out.`);
+            break;
+          }
+          addAnnotation(page, doc.context.obj(dict as never) as unknown as PDFDict);
+          break;
+        }
+        case 'note': {
+          const [r, g, b] = hexToTriple(o.color);
+          // The note carries its own icon, so it looks the same in every viewer.
+          const icon = doc.context.stream(
+            `${r} ${g} ${b} rg 0.5 0.5 17 17 re f 0.3 0.3 0.3 RG 0.7 w 0.5 0.5 17 17 re S 4 12.5 m 14 12.5 l S 4 9 m 14 9 l S 4 5.5 m 10 5.5 l S`,
+            { Type: 'XObject', Subtype: 'Form', BBox: [0, 0, 18, 18] },
+          );
+          const common = { Type: 'Annot', Subtype: 'Text', Rect: pdfRect(o), M: PDFString.fromDate(new Date()), F: 4 };
+          const parent = addAnnotation(
+            page,
+            doc.context.obj({
+              ...common, Name: 'Comment', C: [r, g, b], Open: false,
+              Contents: PDFHexString.fromText(o.text), T: PDFHexString.fromText(o.author),
+              AP: { N: doc.context.register(icon) },
+            } as never) as unknown as PDFDict,
+          );
+          for (const reply of o.replies) {
+            if (!reply.text.trim()) continue;
+            addAnnotation(
+              page,
+              doc.context.obj({
+                ...common, IRT: parent, RT: 'R', Contents: PDFHexString.fromText(reply.text), T: PDFHexString.fromText(reply.author),
+              } as never) as unknown as PDFDict,
+            );
+          }
+          break;
+        }
+        case 'field': {
+          const [x1, y1, x2, y2] = pdfRect(o);
+          const place = {
+            x: x1, y: y1, width: x2 - x1, height: y2 - y1, borderWidth: 1, borderColor: rgb(0.45, 0.45, 0.5), backgroundColor: rgb(1, 1, 1),
+            ...(info.rotation ? { rotate: degrees(info.rotation) } : {}),
+          };
+          try {
+            const form = doc.getForm();
+            if (o.kind === 'checkbox') {
+              const box = form.createCheckBox(o.name);
+              box.addToPage(page, place);
+              if (o.checked) box.check();
+            } else {
+              const field = form.createTextField(o.name);
+              if (o.value) field.setText(o.value);
+              field.addToPage(page, place);
+              field.setFontSize(o.fontSize);
+            }
+            formTouched = true;
+          } catch (e: any) {
+            throw new ExportError(`The form field "${o.name}" on page ${pageIndex + 1} could not be created: ${e?.message ?? e}`);
+          }
           break;
         }
         case 'table': {
@@ -585,12 +705,40 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     );
   }
 
+  // Values typed into the form fields the PDF already had.
+  const values = Object.entries(input.formValues ?? {});
+  if (values.length) {
+    const failed: string[] = [];
+    const form = doc.getForm();
+    for (const [name, value] of values) {
+      try {
+        const field = form.getField(name);
+        if (field instanceof PDFTextField) field.setText(String(value));
+        else if (field instanceof PDFCheckBox) value ? field.check() : field.uncheck();
+        else if (field instanceof PDFRadioGroup) value ? field.select(String(value)) : field.clear();
+        else if (field instanceof PDFDropdown || field instanceof PDFOptionList) field.select(String(value));
+        else throw new Error('unsupported field type');
+        formTouched = true;
+      } catch {
+        failed.push(name);
+      }
+    }
+    if (failed.length) warnings.push(`These form fields could not be filled: ${failed.join(', ')}.`);
+  }
+
   onProgress?.(pageIndexes.length, pageIndexes.length, 'Saving PDF');
   let bytes: Uint8Array;
   try {
     bytes = await doc.save();
   } catch (e: any) {
-    throw new ExportError(`The edited PDF could not be serialised: ${e?.message ?? e}`);
+    if (!formTouched) throw new ExportError(`The edited PDF could not be serialised: ${e?.message ?? e}`);
+    // Some forms cannot have the look of their fields rebuilt; the values are still saved.
+    try {
+      bytes = await doc.save({ updateFieldAppearances: false });
+      warnings.push('The look of some form fields could not be refreshed. Their values are saved; a PDF viewer will redraw them.');
+    } catch (e2: any) {
+      throw new ExportError(`The edited PDF could not be serialised: ${e2?.message ?? e2}`);
+    }
   }
 
   // Validation: the result must parse again and keep every page.

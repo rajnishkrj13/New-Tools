@@ -12,7 +12,25 @@ export type Tool =
   | 'rect'
   | 'ellipse'
   | 'line'
-  | 'arrow';
+  | 'arrow'
+  | 'link'
+  | 'note'
+  | 'textfield'
+  | 'checkbox';
+
+/** One place where the searched text was found. */
+export interface SearchHit {
+  pageIndex: number;
+  /** Area of the match in view space. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Where the match is, so it can be replaced. */
+  target:
+    | { kind: 'page'; paragraphId: string; slot: number; start: number; end: number }
+    | { kind: 'object'; id: string; start: number; end: number };
+}
 
 export const SHAPE_TOOLS: Tool[] = ['rect', 'ellipse', 'line', 'arrow'];
 

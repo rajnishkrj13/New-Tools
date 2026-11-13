@@ -42,11 +42,11 @@ function store(next: TextEditObject, key: string | null = null) {
 }
 
 /** Replaces characters [start, end) of one line of a paragraph and reflows the paragraph. */
-export function editParagraphText(para: Paragraph, slot: number, start: number, end: number, replacement: string) {
+export function editParagraphText(para: Paragraph, slot: number, start: number, end: number, replacement: string, key: string | null = null) {
   const edit = editFor(para);
   const current = edit.lines[slot] ?? '';
   if (current.slice(start, end) === replacement) return;
-  store(applyRangeEdit(edit, slot, start, end, replacement));
+  store(applyRangeEdit(edit, slot, start, end, replacement), key);
 }
 
 export function styleParagraph(para: Paragraph, patch: Partial<TextStyle>, key?: string) {

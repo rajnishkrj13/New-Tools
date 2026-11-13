@@ -1,4 +1,4 @@
-import type { EditorObject, ImageAsset } from '../types/objects';
+import type { EditorObject, FormValues, ImageAsset } from '../types/objects';
 import type { PageInfo } from '../types/pdf';
 import { listCustomFonts, registerCustomFontBytes } from '../engines/FontManager';
 import { loadPdf, openSource, readDocument } from '../engines/PdfRenderer';
@@ -27,6 +27,8 @@ export interface SavedSession {
   assets: Omit<ImageAsset, 'bytes' | 'url'>[];
   sources: { id: string; name: string }[];
   fonts: { id: string; name: string }[];
+  /** Values typed into the PDF's own form fields. */
+  formValues?: FormValues;
 }
 
 const PREF_KEY = 'pdf-editor:autosave';
@@ -100,6 +102,7 @@ async function writeState() {
       .map(({ id, name, mime, width, height }) => ({ id, name, mime, width, height })),
     sources: Object.entries(s.sources).map(([id, src]) => ({ id, name: src.name })),
     fonts: fonts.map((f) => ({ id: f.id, name: f.custom!.name })),
+    formValues: s.formValues,
   };
   // Written last: a session is only valid once everything it refers to is stored.
   await idbPut('meta', session);
@@ -162,7 +165,7 @@ export function initAutoSave() {
   useEditorStore.subscribe((s, prev) => {
     if (!s.doc) return;
     if (s.bytes !== prev.bytes && s.autoSave.status !== 'idle') s.setAutoSave({ status: 'idle', at: null });
-    if (s.bytes !== prev.bytes || s.objects !== prev.objects || s.pages !== prev.pages || s.sources !== prev.sources || s.fontVersion !== prev.fontVersion) {
+    if (s.bytes !== prev.bytes || s.objects !== prev.objects || s.pages !== prev.pages || s.sources !== prev.sources || s.formValues !== prev.formValues || s.fontVersion !== prev.fontVersion) {
       schedule();
     }
   });
@@ -238,7 +241,7 @@ export async function resumeSavedSession(): Promise<boolean> {
     baseSaved = bytes;
     invalidateLayouts();
     getState().openDocument(info, pages, bytes);
-    getState().restoreSession(objects, assets, sources);
+    getState().restoreSession(objects, assets, sources, meta.formValues ?? {});
     getState().bumpFonts();
     getState().setAutoSave({ status: 'saved', at: meta.savedAt });
     requestAnimationFrame(() => {

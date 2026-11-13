@@ -31,6 +31,9 @@ export interface TextRun {
   baseline: number;
   width: number;
   fontSize: number;
+  /** Set for runs of a formatted text box whose style differs from the box. */
+  bold?: boolean;
+  italic?: boolean;
 }
 
 export interface TextEditLayout {
@@ -259,18 +262,124 @@ export interface TextBoxLayout {
   height: number;
 }
 
+/** What {page}, {pages}, {date} and {file} stand for. Set by the editor whenever the document changes. */
+let fieldContext = { pages: 1, fileName: '' };
+export function setFieldContext(pages: number, fileName: string) {
+  if (fieldContext.pages === pages && fieldContext.fileName === fileName) return;
+  fieldContext = { pages, fileName };
+  boxCache = new WeakMap();
+}
+
+/** Fills the placeholders of a header, footer or page-number text for one page. */
+export function resolveFields(text: string, pageIndex: number): string {
+  return text
+    .replace(/\{page\}/g, String(pageIndex + 1))
+    .replace(/\{pages\}/g, String(fieldContext.pages))
+    .replace(/\{date\}/g, new Date().toLocaleDateString())
+    .replace(/\{file\}/g, fieldContext.fileName.replace(/\.pdf$/i, ''));
+}
+
+/** Style of one run: a run of a formatted text box may be bold or italic on its own. */
+export function runStyle<T extends { bold: boolean; italic: boolean }>(style: T, run: TextRun): T {
+  if (run.bold === undefined && run.italic === undefined) return style;
+  return { ...style, bold: run.bold ?? style.bold, italic: run.italic ?? style.italic };
+}
+
+interface Token {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+/** Splits "plain **bold** *italic*" into styled words (each word keeps the space after it). */
+function inlineTokens(text: string, o: TextObject): Token[] {
+  const out: Token[] = [];
+  const push = (t: string, bold: boolean, italic: boolean) => {
+    for (const w of t.match(/\S+\s*|\s+/g) ?? []) out.push({ text: w, bold: o.bold || bold, italic: o.italic || italic });
+  };
+  const re = /\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_/g;
+  let last = 0;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    if (m.index > last) push(text.slice(last, m.index), false, false);
+    if (m[1] !== undefined) push(m[1], true, false);
+    else push(m[2] ?? m[3], false, true);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) push(text.slice(last), false, false);
+  return out;
+}
+
+/**
+ * Text box with formatting marks: "- " / "1. " start list items (hanging indent),
+ * **bold** and *italic* style parts of a line.
+ */
+function layoutRich(o: TextObject, source: string): TextBoxLayout {
+  const lineHeight = o.fontSize * LINE_HEIGHT_EM;
+  const measure = (t: string, tok: { bold: boolean; italic: boolean }) => measureText(t, { ...o, bold: tok.bold, italic: tok.italic });
+  const lines: TextRun[] = [];
+  let row = 0;
+  const emit = (tokens: Token[], indent: number) => {
+    // Merge neighbours of the same style into one run and place the row.
+    const runs: { text: string; bold: boolean; italic: boolean }[] = [];
+    for (const t of tokens) {
+      const last = runs[runs.length - 1];
+      if (last && last.bold === t.bold && last.italic === t.italic) last.text += t.text;
+      else runs.push({ ...t });
+    }
+    if (runs.length) runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
+    const widths = runs.map((r) => measure(r.text, r));
+    const total = widths.reduce((a, b) => a + b, 0);
+    const free = o.width - indent - total;
+    let x = indent + (o.align === 'center' ? free / 2 : o.align === 'right' ? free : 0);
+    runs.forEach((r, k) => {
+      if (r.text) lines.push({ text: r.text, x, baseline: o.fontSize * BASELINE_EM + row * lineHeight, width: widths[k], fontSize: o.fontSize, bold: r.bold, italic: r.italic });
+      x += widths[k];
+    });
+    row++;
+  };
+  for (const raw of source.replace(/\r/g, '').split('\n')) {
+    const m = /^\s*(?:([-*\u2022])|(\d+)[.)])\s+(.*)$/.exec(raw);
+    const marker = m ? (m[1] ? '\u2022' : `${m[2]}.`) : null;
+    const indent = marker ? Math.max(o.fontSize * 1.3, measure(`${marker} `, o)) : 0;
+    if (marker) {
+      lines.push({ text: marker, x: 0, baseline: o.fontSize * BASELINE_EM + row * lineHeight, width: measure(marker, o), fontSize: o.fontSize, bold: o.bold, italic: o.italic });
+    }
+    const avail = Math.max(10, o.width - indent);
+    let current: Token[] = [];
+    let used = 0;
+    for (const tok of inlineTokens(m ? m[3] : raw, o)) {
+      const w = measure(tok.text, tok);
+      if (current.length && used + measure(tok.text.trimEnd(), tok) > avail + 0.01) {
+        emit(current, indent);
+        current = [];
+        used = 0;
+        if (!tok.text.trim()) continue;
+      }
+      current.push(tok);
+      used += w;
+    }
+    emit(current, indent);
+  }
+  return { lines, height: Math.max(1, row) * lineHeight };
+}
+
 /** Lays out a user-added text box. Coordinates are relative to the box's top-left corner. */
 export function layoutTextObject(o: TextObject): TextBoxLayout {
   const hit = boxCache.get(o);
   if (hit) return hit;
-  const wrapped = wrapText(o.text, o.width, (t) => measureText(t, o));
-  const lineHeight = o.fontSize * LINE_HEIGHT_EM;
-  const lines: TextRun[] = wrapped.map((text, i) => {
-    const width = measureText(text, o);
-    const x = o.align === 'center' ? (o.width - width) / 2 : o.align === 'right' ? o.width - width : 0;
-    return { text, x, baseline: o.fontSize * BASELINE_EM + i * lineHeight, width, fontSize: o.fontSize };
-  });
-  const layout = { lines, height: Math.max(1, wrapped.length) * lineHeight };
+  const source = o.fields ? resolveFields(o.text, o.pageIndex) : o.text;
+  let layout: TextBoxLayout;
+  if (o.rich) layout = layoutRich(o, source);
+  else {
+    const wrapped = wrapText(source, o.width, (t) => measureText(t, o));
+    const lineHeight = o.fontSize * LINE_HEIGHT_EM;
+    const lines: TextRun[] = wrapped.map((text, i) => {
+      const width = measureText(text, o);
+      const x = o.align === 'center' ? (o.width - width) / 2 : o.align === 'right' ? o.width - width : 0;
+      return { text, x, baseline: o.fontSize * BASELINE_EM + i * lineHeight, width, fontSize: o.fontSize };
+    });
+    layout = { lines, height: Math.max(1, wrapped.length) * lineHeight };
+  }
   boxCache.set(o, layout);
   return layout;
 }

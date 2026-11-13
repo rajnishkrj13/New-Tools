@@ -15,6 +15,8 @@ export interface TextStyle {
 interface BaseObject {
   id: string;
   pageIndex: number;
+  /** Objects created together on several pages (header, footer, watermark) share a group id. */
+  groupId?: string;
 }
 
 /** A new text box added by the user. x/y is the top-left corner; rotation is clockwise degrees about it. */
@@ -25,6 +27,59 @@ export interface TextObject extends BaseObject, TextStyle {
   width: number;
   rotation: number;
   text: string;
+  /**
+   * Formatting marks are applied: lines starting with "- " or "1. " are list items,
+   * **text** is bold and *text* is italic.
+   */
+  rich?: boolean;
+  /** {page}, {pages}, {date} and {file} in the text are filled in for each page. */
+  fields?: boolean;
+  /** Border drawn around the text (stamps). */
+  frame?: { color: string; width: number; padding: number };
+}
+
+/** A clickable area that opens a web address or jumps to a page. */
+export interface LinkObject extends BaseObject {
+  type: 'link';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  url: string;
+  /** Page (by id) to jump to instead of opening `url`. */
+  targetPageId?: string | null;
+  /** The link of the original PDF this one replaces (its annotation reference). */
+  sourceRef?: string;
+  /** With `sourceRef`: the original link is deleted. */
+  removed?: boolean;
+}
+
+/** A sticky-note comment. width/height are the size of its icon. */
+export interface NoteObject extends BaseObject {
+  type: 'note';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text: string;
+  author: string;
+  color: string;
+  replies: { author: string; text: string }[];
+}
+
+/** A new fillable form field. */
+export interface FieldObject extends BaseObject {
+  type: 'field';
+  kind: 'text' | 'checkbox';
+  /** Field name inside the PDF form; must be unique in the document. */
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  value: string;
+  checked: boolean;
+  fontSize: number;
 }
 
 export interface ImageObject extends BaseObject {
@@ -194,12 +249,18 @@ export type EditorObject =
   | HighlightObject
   | TableObject
   | ImageCutObject
+  | LinkObject
+  | NoteObject
+  | FieldObject
   | TextEditObject;
 
 export type ObjectType = EditorObject['type'];
 
 /** Changes to the page's own content: drawn under everything else and never selected. */
 export const isPageEdit = (o: EditorObject): o is TextEditObject | ImageCutObject => o.type === 'textedit' || o.type === 'imagecut';
+
+/** Value typed into a form field that already exists in the PDF, by field name. */
+export type FormValues = Record<string, string | boolean>;
 
 export interface ImageAsset {
   id: string;

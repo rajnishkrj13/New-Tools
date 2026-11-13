@@ -9,7 +9,10 @@ import { arrowHeadSize } from '../engines/PdfExporter';
 import { findPageImages, getPdfPage } from '../engines/PdfRenderer';
 import { getCachedTextModel, loadTextModel } from '../engines/PdfTextExtractor';
 import { MARK_OPACITY, markForArea, markShapes, marksForBox } from '../engines/TextHighlighter';
-import { layoutTextEdit, layoutTextObject, type TextRun } from '../engines/TextEditLayout';
+import { layoutTextEdit, layoutTextObject, runStyle, type TextRun } from '../engines/TextEditLayout';
+import { findPageLinks, type PageLink } from '../engines/PdfRenderer';
+import { objectBounds, shiftObject } from '../store/selectionActions';
+import type { FieldObject } from '../types/objects';
 import { cellAt, layoutTable } from '../engines/TableLayout';
 import { getState, useEditorStore } from '../store/documentStore';
 import { liftPageImage, moveObjectToPage } from '../store/imageActions';
@@ -23,7 +26,7 @@ function drawRuns(context: Konva.Context, runs: TextRun[], style: TextStyle) {
   c.textBaseline = 'alphabetic';
   c.textAlign = 'left';
   for (const r of runs) {
-    c.font = cssFont({ ...style, fontSize: r.fontSize });
+    c.font = cssFont({ ...runStyle(style, r), fontSize: r.fontSize });
     const natural = c.measureText(r.text).width;
     const sx = natural > 0 && r.width > 0 ? r.width / natural : 1;
     c.save();
@@ -67,6 +70,37 @@ function drawTable(context: Konva.Context, o: TableObject, skip: { row: number; 
   }
   // The cell that is being typed is shown by its text field.
   for (const cell of layout.cells) if (!(skip && skip.row === cell.row && skip.col === cell.col)) drawRuns(context, cell.runs, cell.style);
+}
+
+/** A new form field as it will look: a white box with its value, or a tick for a check box. */
+function drawField(context: Konva.Context, o: FieldObject) {
+  const c = (context as any)._context as CanvasRenderingContext2D;
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, o.width, o.height);
+  c.strokeStyle = '#64748b';
+  c.lineWidth = 1;
+  c.strokeRect(0, 0, o.width, o.height);
+  if (o.kind === 'checkbox') {
+    if (!o.checked) return;
+    c.strokeStyle = '#111827';
+    c.lineWidth = Math.max(1, o.width * 0.12);
+    c.beginPath();
+    c.moveTo(o.width * 0.2, o.height * 0.55);
+    c.lineTo(o.width * 0.42, o.height * 0.78);
+    c.lineTo(o.width * 0.82, o.height * 0.24);
+    c.stroke();
+    return;
+  }
+  c.save();
+  c.beginPath();
+  c.rect(1, 1, o.width - 2, o.height - 2);
+  c.clip();
+  c.textBaseline = 'middle';
+  c.font = `${o.fontSize}px Arial, Helvetica, sans-serif`;
+  // An empty field shows its name in grey so it can be told apart while editing.
+  c.fillStyle = o.value ? '#111827' : '#94a3b8';
+  c.fillText(o.value || o.name, 3, o.height / 2);
+  c.restore();
 }
 
 function useHtmlImage(url?: string) {
@@ -151,18 +185,64 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   const onText = useRef(false);
   const [draft, setDraft] = useState<EditorObject | null>(null);
 
+  const extraSelected = useEditorStore((s) => s.extraSelected);
   const selected = objects.find((o) => o.id === selectedId && !isPageEdit(o));
+  /** Everything selected on this page (more than one after Shift+click). */
+  const selection = objects.filter((o) => (o.id === selectedId || extraSelected.includes(o.id)) && !isPageEdit(o));
+  const multi = selection.length > 1;
   const [pdfImages, setPdfImages] = useState<PageImage[]>([]);
+  const [pdfLinks, setPdfLinks] = useState<PageLink[]>([]);
   const [hoverImage, setHoverImage] = useState<string | null>(null);
+  /** Alignment guides shown while an object is dragged: x positions and y positions. */
+  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
   const canSelect = tool === 'select';
 
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-    const node = selected && canSelect && editingTextId !== selected.id ? nodes.current.get(selected.id) : undefined;
-    tr.nodes(node ? [node] : []);
+    const list = canSelect ? selection.filter((o) => editingTextId !== o.id).map((o) => nodes.current.get(o.id)).filter((n): n is Konva.Node => !!n) : [];
+    tr.nodes(list);
     tr.getLayer()?.batchDraw();
   });
+
+  // Links the original page already has can be picked up with the Link tool.
+  useEffect(() => {
+    if (tool !== 'link') return;
+    let dead = false;
+    findPageLinks(page).then((list) => !dead && setPdfLinks(list));
+    return () => {
+      dead = true;
+    };
+  }, [tool, page]);
+
+  /**
+   * Snaps a dragged object to the page edges and centre and to the edges and centres of the
+   * other objects, and shows the guide it snapped to. Hold Alt to move freely.
+   */
+  const snap = (node: Konva.Node, self: EditorObject, free: boolean) => {
+    const layer = node.getLayer();
+    if (!layer || free) return setGuides({ v: [], h: [] });
+    const box = node.getClientRect({ relativeTo: layer as never, skipStroke: true, skipShadow: true });
+    const xs = [0, page.width / 2, page.width];
+    const ys = [0, page.height / 2, page.height];
+    for (const o of objects) {
+      if (o.id === self.id || isPageEdit(o)) continue;
+      const b = objectBounds(o);
+      xs.push(b.x, b.x + b.width / 2, b.x + b.width);
+      ys.push(b.y, b.y + b.height / 2, b.y + b.height);
+    }
+    const tol = 6 / zoom;
+    const nearest = (targets: number[], edges: number[]) => {
+      let best: { d: number; t: number } | null = null;
+      for (const t of targets) for (const e of edges) if (Math.abs(t - e) < tol && (!best || Math.abs(t - e) < Math.abs(best.d))) best = { d: t - e, t };
+      return best;
+    };
+    const sx = nearest(xs, [box.x, box.x + box.width / 2, box.x + box.width]);
+    const sy = nearest(ys, [box.y, box.y + box.height / 2, box.y + box.height]);
+    if (sx) node.x(node.x() + sx.d);
+    if (sy) node.y(node.y() + sy.d);
+    setGuides({ v: sx ? [sx.t] : [], h: sy ? [sy.t] : [] });
+  };
 
   // The highlighter snaps to the page's text, which is read once per page.
   useEffect(() => {
@@ -229,6 +309,21 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
         onText.current = false;
         setDraft({ ...base, type: 'highlight', mode: ts.markMode, color: ts.markColor, opacity: MARK_OPACITY[ts.markMode], rects: [] });
         break;
+      case 'link':
+        setDraft({ ...base, type: 'link', x: p.x, y: p.y, width: 0, height: 0, url: '' });
+        break;
+      case 'textfield':
+      case 'checkbox': {
+        const kind = tool === 'checkbox' ? 'checkbox' : 'text';
+        // A name nobody else uses: Text1, Text2 ... / Check1, Check2 ...
+        const taken = new Set(s.objects.map((o) => (o.type === 'field' ? o.name : '')));
+        let n = 1;
+        while (taken.has(`${kind === 'text' ? 'Text' : 'Check'}${n}`)) n++;
+        setDraft({ ...base, type: 'field', kind, name: `${kind === 'text' ? 'Text' : 'Check'}${n}`, x: p.x, y: p.y, width: 0, height: 0, value: '', checked: false, fontSize: 11 });
+        break;
+      }
+      case 'note':
+        return; // placed on click
       case 'rect':
       case 'ellipse':
         setDraft({
@@ -250,6 +345,15 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   };
 
   const onClick = (e: Konva.KonvaEventObject<Event>) => {
+    if (tool === 'note') {
+      const s = getState();
+      const p = e.target.getStage()!.getRelativePointerPosition()!;
+      s.setTool('select');
+      getState().addObject({ id: newId(), pageIndex: page.index, type: 'note', x: p.x - 9, y: p.y - 9, width: 18, height: 18, text: '', author: '', color: '#facc15', replies: [] });
+      // The note's text is typed in the panel on the right.
+      setTimeout(() => document.querySelector<HTMLTextAreaElement>('#note-text')?.focus(), 80);
+      return;
+    }
     if (tool !== 'addtext') return;
     const s = getState();
     const p = e.target.getStage()!.getRelativePointerPosition()!;
@@ -290,8 +394,19 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     if (d.type === 'line' || d.type === 'arrow') ok = Math.hypot(d.points[2] - d.points[0], d.points[3] - d.points[1]) > 3;
     else if (d.type === 'path') ok = d.points.length >= 2;
     else if (d.type === 'highlight') ok = d.rects.length > 0 && (onText.current || (d.rects[0].width > 3 && d.rects[0].height > 3));
-    else if ('width' in d && 'height' in d) ok = d.width > 3 && d.height > 3;
-    if (ok) getState().addObject(d, false);
+    else if (d.type === 'field' && (d.width <= 3 || d.height <= 3)) {
+      // A plain click places a field of the usual size.
+      const size = d.kind === 'checkbox' ? { width: 14, height: 14 } : { width: 160, height: 22 };
+      getState().setTool('select');
+      return getState().addObject({ ...d, ...size });
+    } else if ('width' in d && 'height' in d) ok = d.width > 3 && d.height > 3;
+    if (!ok) return;
+    if (d.type === 'link' || d.type === 'field') {
+      // Its address / name is filled in next, in the panel on the right.
+      getState().setTool('select');
+      getState().addObject(d);
+      if (d.type === 'link') setTimeout(() => document.querySelector<HTMLInputElement>('#link-url')?.focus(), 80);
+    } else getState().addObject(d, false);
   };
 
   /** Lines and freehand paths keep no transform: it is baked into their points. */
@@ -317,11 +432,35 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
         if (n) nodes.current.set(o.id, n);
         else nodes.current.delete(o.id);
       },
-      onMouseDown: () => canSelect && getState().select(o.id),
+      onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (!canSelect) return;
+        const s = getState();
+        const isSelected = s.selectedId === o.id || s.extraSelected.includes(o.id);
+        // Shift or Ctrl adds to / removes from the selection; a selected object keeps the group when dragged.
+        if (e.evt.shiftKey || e.evt.ctrlKey || e.evt.metaKey) s.toggleSelect(o.id);
+        else if (!isSelected) s.select(o.id);
+      },
       onTouchStart: () => canSelect && getState().select(o.id),
-      onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => markDropTarget(otherPage(e)?.el ?? null),
+      onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+        // Several selected objects are moved together by the transformer; they do not snap.
+        if (multi) return;
+        const node = e.target;
+        const away = otherPage(e)?.el ?? null;
+        markDropTarget(away);
+        snap(node, o, !!away || (e.evt as unknown as MouseEvent).altKey);
+      },
       onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
         const node = e.target;
+        setGuides({ v: [], h: [] });
+        if (multi) {
+          // Every object of the group reports its own move; the shared key makes it one undo step.
+          markDropTarget(null);
+          const s = getState();
+          const dx = node.x() - ('x' in o ? o.x : 0);
+          const dy = node.y() - ('x' in o ? o.y : 0);
+          if ('points' in o) node.position({ x: 0, y: 0 });
+          return s.commit(s.objects.map((x) => (x.id === o.id ? shiftObject(x, dx, dy) : x)), 'group-drag');
+        }
         const to = otherPage(e);
         markDropTarget(null);
         if (to && o.type !== 'highlight') {
@@ -343,7 +482,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
         node.scaleX(1);
         node.scaleY(1);
         const patch: Record<string, number> = { x: node.x(), y: node.y(), width: Math.max(4, o.width * sx) };
-        if (o.type !== 'whiteout' && o.type !== 'redact') patch.rotation = node.rotation();
+        if ('rotation' in o) patch.rotation = node.rotation();
         if ('height' in o) patch.height = Math.max(4, o.height * sy);
         if (o.type === 'table') patch.width = Math.max(o.colW.length * 12, o.width * sx);
         getState().updateObject(o.id, patch as Partial<EditorObject>);
@@ -368,7 +507,16 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
             key={`${o.id}:${fontVersion}`}
             x={o.x} y={o.y} width={o.width} height={layout.height} rotation={o.rotation} opacity={o.opacity}
             visible={editingTextId !== o.id}
-            sceneFunc={(ctx) => drawRuns(ctx, layout.lines, o)}
+            sceneFunc={(ctx) => {
+              if (o.frame) {
+                const c = (ctx as any)._context as CanvasRenderingContext2D;
+                const f = o.frame;
+                c.strokeStyle = f.color;
+                c.lineWidth = f.width;
+                c.strokeRect(-f.padding, -f.padding, o.width + f.padding * 2, layout.height + f.padding * 2);
+              }
+              drawRuns(ctx, layout.lines, o);
+            }}
             hitFunc={(ctx, shape) => {
               ctx.beginPath();
               ctx.rect(0, 0, shape.width(), shape.height());
@@ -405,6 +553,39 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
           />
         );
       }
+      case 'link':
+        // A deleted link of the original document has nothing to show.
+        if (o.removed) return null;
+        return (
+          <Rect
+            key={o.id} x={o.x} y={o.y} width={o.width} height={o.height} fill="rgba(47,125,246,0.12)"
+            stroke="#2f7df6" strokeWidth={1 / zoom} dash={[4 / zoom, 3 / zoom]} strokeScaleEnabled={false}
+            {...props}
+          />
+        );
+      case 'note':
+        return (
+          <Group key={o.id} x={o.x} y={o.y} width={o.width} height={o.height} {...props}>
+            <Rect width={o.width} height={o.height} fill={o.color} stroke="#4b5563" strokeWidth={0.7} cornerRadius={1.5} />
+            <Line points={[4, 5.5, 14, 5.5]} stroke="#4b5563" strokeWidth={0.7} listening={false} />
+            <Line points={[4, 9, 14, 9]} stroke="#4b5563" strokeWidth={0.7} listening={false} />
+            <Line points={[4, 12.5, 10, 12.5]} stroke="#4b5563" strokeWidth={0.7} listening={false} />
+          </Group>
+        );
+      case 'field':
+        return (
+          <Shape
+            key={o.id} x={o.x} y={o.y} width={o.width} height={o.height}
+            sceneFunc={(ctx) => drawField(ctx, o)}
+            hitFunc={(ctx, shape) => {
+              ctx.beginPath();
+              ctx.rect(0, 0, shape.width(), shape.height());
+              ctx.closePath();
+              ctx.fillStrokeShape(shape);
+            }}
+            {...props}
+          />
+        );
       case 'image':
         return <ImageNode key={o.id} o={o} nodeProps={props} />;
       case 'whiteout':
@@ -465,11 +646,16 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     }
   };
 
-  const tr = selected
+  const tr = multi
+    ? // Several objects are moved together; resizing and rotating work on one object at a time.
+      { anchors: [] as string[], keepRatio: false, rotate: false }
+    : selected
     ? selected.type === 'image'
       ? { anchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], keepRatio: selected.keepRatio, rotate: true }
-      : selected.type === 'highlight'
+      : selected.type === 'highlight' || selected.type === 'note'
         ? { anchors: [] as string[], keepRatio: false, rotate: false }
+        : selected.type === 'link' || selected.type === 'field'
+        ? { anchors: undefined, keepRatio: false, rotate: false }
         : selected.type === 'text'
         ? { anchors: ['middle-left', 'middle-right'], keepRatio: false, rotate: true }
         : { anchors: undefined, keepRatio: false, rotate: selected.type !== 'whiteout' && selected.type !== 'redact' }
@@ -539,7 +725,28 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
           );
         })}
         {rest.map((o) => renderObject(o))}
+        {tool === 'link' &&
+          pdfLinks
+            .filter((l) => !objects.some((o) => o.type === 'link' && o.sourceRef === l.ref))
+            .map((l) => (
+              <Rect
+                key={`pdflink${l.ref}`} x={l.x} y={l.y} width={l.width} height={l.height}
+                fill="rgba(16,185,129,0.12)" stroke="#10b981" strokeWidth={1 / zoom} dash={[4 / zoom, 3 / zoom]}
+                onMouseDown={(e) => {
+                  // Picks up a link the document already has, so its address can be changed or the link removed.
+                  e.cancelBubble = true;
+                  getState().setTool('select');
+                  getState().addObject({ id: newId(), pageIndex: page.index, type: 'link', x: l.x, y: l.y, width: l.width, height: l.height, url: l.url, sourceRef: l.ref });
+                }}
+              />
+            ))}
         {draft && renderObject(draft, true)}
+        {guides.v.map((x) => (
+          <Line key={`gv${x}`} points={[x, 0, x, page.height]} stroke="#f43f5e" strokeWidth={1 / zoom} dash={[4 / zoom, 3 / zoom]} listening={false} />
+        ))}
+        {guides.h.map((y) => (
+          <Line key={`gh${y}`} points={[0, y, page.width, y]} stroke="#f43f5e" strokeWidth={1 / zoom} dash={[4 / zoom, 3 / zoom]} listening={false} />
+        ))}
         <Transformer
           ref={trRef}
           rotateEnabled={tr?.rotate ?? true}

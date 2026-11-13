@@ -2,6 +2,8 @@ import { useDropzone } from 'react-dropzone';
 import { CircleCheck, CircleX, Info, Loader2, TriangleAlert, X } from 'lucide-react';
 import { ExportDialog } from './components/ExportDialog';
 import { PdfViewer } from './components/PdfViewer';
+import { SearchPanel } from './components/SearchPanel';
+import { PageElementsDialog } from './components/PageElementsDialog';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
 import { SignatureEditor } from './components/SignatureEditor';
@@ -66,6 +68,7 @@ function Editor() {
       <div className="relative flex min-h-0 flex-1">
         <Sidebar key={`s${docKey}`} />
         <PdfViewer key={`v${docKey}`} />
+        <SearchPanel />
         <PropertiesPanel />
         {isDragActive && (
           <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-brand-500/10 ring-4 ring-inset ring-brand-500">
@@ -85,6 +88,7 @@ export default function App() {
     <>
       {hasDoc ? <Editor /> : <UploadDropzone />}
       <SignatureEditor />
+      <PageElementsDialog />
       <ExportDialog />
       <Toasts />
       {loading && (

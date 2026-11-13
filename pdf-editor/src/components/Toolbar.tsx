@@ -11,6 +11,8 @@ import { listFonts, registerCustomFont } from '../engines/FontManager';
 import { applyChanges, downloadPdf } from '../hooks/useExport';
 import { insertImageFile, openPdfFile } from '../hooks/usePdfDocument';
 import { getState, useEditorStore } from '../store/documentStore';
+import { openSearch } from '../store/searchActions';
+import { Link2, MessageSquare, Search, SquarePen, Stamp } from 'lucide-react';
 import { insertTable } from '../store/imageActions';
 
 function ToolButton(props: { icon: React.ReactNode; label: string; active?: boolean; disabled?: boolean; onClick: () => void; title?: string }) {
@@ -262,8 +264,26 @@ function ToolOptions() {
         <span className={hint}>Drag on the page to draw</span>
       </>
     );
+  } else if (tool === 'link') {
+    content = <span className={hint}>Drag over the text or area that should be clickable, then type the address on the right. Links the document already has are outlined in green: click one to change or remove it.</span>;
+  } else if (tool === 'note') {
+    content = <span className={hint}>Click where the comment should sit, then type it on the right. Others see it as a note icon they can open.</span>;
+  } else if (tool === 'textfield' || tool === 'checkbox') {
+    content = (
+      <>
+        <Segmented<Tool>
+          value={tool}
+          onChange={getState().setTool}
+          options={[
+            { value: 'textfield', label: 'Text field' },
+            { value: 'checkbox', label: 'Check box' },
+          ]}
+        />
+        <span className={hint}>Drag to draw the field, or click for the usual size. Fields the document already has can be filled in directly with the Select tool.</span>
+      </>
+    );
   } else {
-    content = <span className={hint}>Click an object to select it · drag to move · handles resize and rotate · Delete removes · double-click a text box to retype it · click or drag a picture in the PDF to edit it · drag onto another page to move it there</span>;
+    content = <span className={hint}>Shift+click selects several objects · Ctrl+C / Ctrl+V copy and paste · objects snap to each other while dragged (Alt: off) · Click an object to select it · drag to move · handles resize and rotate · Delete removes · double-click a text box to retype it · click or drag a picture in the PDF to edit it · drag onto another page to move it there</span>;
   }
   // Keyed by tool so the inputs of one tool are never reused for another.
   return (
@@ -312,6 +332,11 @@ export function Toolbar() {
           <ToolButton icon={<Table size={18} />} label="Table" title="Insert a table on the current page" onClick={() => insertTable()} />
           <ToolButton icon={<Signature size={18} />} label="Signature" onClick={() => s.setSignatureOpen(true)} />
           <ToolButton icon={<Shapes size={18} />} label="Shapes" active={SHAPE_TOOLS.includes(tool)} onClick={pick(SHAPE_TOOLS.includes(tool) ? tool : lastShape)} />
+          <ToolButton icon={<Link2 size={18} />} label="Link" title="Add a web link or a jump to a page; click an existing link to change it" active={tool === 'link'} onClick={pick('link')} />
+          <ToolButton icon={<MessageSquare size={18} />} label="Comment" title="Add a sticky-note comment" active={tool === 'note'} onClick={pick('note')} />
+          <ToolButton icon={<SquarePen size={18} />} label="Form" title="Add a fillable text field or check box" active={tool === 'textfield' || tool === 'checkbox'} onClick={pick(tool === 'checkbox' ? 'checkbox' : 'textfield')} />
+          <ToolButton icon={<Stamp size={18} />} label="Stamp" title="Header, footer, page numbers, watermark and stamps" onClick={() => s.setPageElementsOpen(true)} />
+          <ToolButton icon={<Search size={18} />} label="Find" title="Find and replace (Ctrl+F)" onClick={openSearch} />
           <Divider />
           <ToolButton icon={<Undo2 size={18} />} label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={s.undo} />
           <ToolButton icon={<Redo2 size={18} />} label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo} onClick={s.redo} />
