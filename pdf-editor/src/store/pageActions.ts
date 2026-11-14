@@ -7,6 +7,8 @@ import { rotateMark } from '../engines/TextHighlighter';
 import { newId } from '../utils/imageUtils';
 import { validatePdfFile } from '../utils/validationUtils';
 import { getState } from './documentStore';
+import { parsePageRanges } from '../engines/PdfTools';
+import { askText } from './promptActions';
 
 /**
  * Page tools: delete, rotate, move, insert a blank page, add the pages of another PDF.
@@ -122,7 +124,27 @@ export async function insertPdfFile(file: File, after: number) {
       );
     });
     const id = `add-${newId()}`;
-    const added = await readPages(await openSource(id, bytes), id);
+    const all = await readPages(await openSource(id, bytes), id);
+    let added = all;
+    if (all.length > 1) {
+      getState().setLoading(null);
+      const answer = await askText({
+        title: 'Pages to add',
+        message: `"${file.name}" has ${all.length} pages. Which ones do you want to add?`,
+        label: 'Pages (for example 1-3, 5)',
+        initial: `1-${all.length}`,
+        okLabel: 'Add pages',
+        validate: (v) => (parsePageRanges(v, all.length) ? null : `Enter page numbers between 1 and ${all.length}, for example 1-3, 5.`),
+      });
+      if (answer === null) return;
+      // The same page may be asked for twice; each copy needs its own identity.
+      const seen = new Map<string, number>();
+      added = parsePageRanges(answer, all.length)!.map((i) => {
+        const n = seen.get(all[i].id) ?? 0;
+        seen.set(all[i].id, n + 1);
+        return n ? { ...all[i], id: `${all[i].id}#${n}` } : all[i];
+      });
+    }
     const now = getState();
     now.addSource(id, file.name, bytes);
     const pages = [...now.pages];
@@ -134,4 +156,28 @@ export async function insertPdfFile(file: File, after: number) {
     getState().setLoading(null);
     getState().toast(e?.message ?? 'The PDF could not be added.', 'error');
   }
+}
+
+/** Inserts a copy of a page right after it, with a copy of everything that was added to it. */
+export function duplicatePage(index: number) {
+  const s = getState();
+  const old = s.pages[index];
+  if (!old) return;
+  const copy = makePageInfo({ ...old, id: `${old.id.split('#')[0]}#${newId().slice(0, 8)}` }, index + 1, old.userRotation);
+  const pages = [...s.pages];
+  pages.splice(index + 1, 0, copy);
+  const next = renumber(pages);
+  // Changes to the page's own text point at paragraphs by page id: the copies point at the copy.
+  const oldKey = `p${old.id}r`;
+  const copies = s.objects
+    .filter((o) => o.pageIndex === index)
+    .map((o): EditorObject => {
+      const c = { ...o, id: newId(), pageIndex: index + 1, groupId: undefined } as EditorObject;
+      if (c.type === 'textedit' && c.paragraphId.startsWith(oldKey)) return { ...c, paragraphId: `p${copy.id}r${c.paragraphId.slice(oldKey.length)}` };
+      if (c.type === 'field') return { ...c, name: `${c.name}_copy${newId().slice(0, 4)}` };
+      if (c.type === 'link') return { ...c, sourceRef: undefined };
+      return c;
+    });
+  s.commitDoc([...remap(s.objects, s.pages, next), ...copies], next);
+  getState().goToPage(index + 1);
 }

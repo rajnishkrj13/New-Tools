@@ -3,3 +3,4 @@ dist
 public/pdfjs
 *.log
 test-assets/local-*
+public/ocr

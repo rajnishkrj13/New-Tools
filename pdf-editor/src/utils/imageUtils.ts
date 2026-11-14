@@ -116,8 +116,29 @@ export async function canvasToTrimmedAsset(canvas: HTMLCanvasElement, name: stri
   return makeAsset(name, 'image/png', bytes, out.width, out.height);
 }
 
-export function downloadBytes(bytes: Uint8Array, fileName: string) {
-  const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'application/pdf' }));
+/** Re-encodes a JPEG at a lower resolution / quality (for the "smaller file" option). Null: keep the original. */
+export async function recodeJpeg(jpeg: Uint8Array, level: { maxSide: number; quality: number }): Promise<{ bytes: Uint8Array; width: number; height: number } | null> {
+  const bitmap = await createImageBitmap(new Blob([jpeg.slice().buffer], { type: 'image/jpeg' }));
+  try {
+    const scale = Math.min(1, level.maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const bytes = await canvasToBytes(canvas, 'image/jpeg', level.quality);
+    const out = { bytes, width: canvas.width, height: canvas.height };
+    canvas.width = 0;
+    return out;
+  } finally {
+    bitmap.close();
+  }
+}
+
+export function downloadBytes(bytes: Uint8Array, fileName: string, type = 'application/pdf') {
+  const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type }));
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;

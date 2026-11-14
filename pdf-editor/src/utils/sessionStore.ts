@@ -38,3 +38,7 @@ export const idbGet = <T>(key: string) => request<T | undefined>('readonly', (s)
 export const idbPut = (key: string, value: unknown) => request('readwrite', (s) => s.put(value, key));
 export const idbDelete = (key: string) => request('readwrite', (s) => s.delete(key));
 export const idbClear = () => request('readwrite', (s) => s.clear());
+
+/** Deletes every key that starts with `prefix/` (everything stored for one document). */
+export const idbDeleteRange = (prefix: string) =>
+  request('readwrite', (s) => s.delete(IDBKeyRange.bound(`${prefix}/`, `${prefix}/${String.fromCharCode(0xffff)}`)));

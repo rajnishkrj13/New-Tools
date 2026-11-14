@@ -4,7 +4,8 @@ import type { PageInfo } from '../types/pdf';
 import { getPdfPage, release, renderPage, type RenderHandle } from '../engines/PdfRenderer';
 import { getState, useEditorStore } from '../store/documentStore';
 import { setAutoSaveEnabled } from '../hooks/useAutoSave';
-import { deletePage, insertBlankPage, insertPdfFile, movePage, rotatePage } from '../store/pageActions';
+import { deletePage, duplicatePage, insertBlankPage, insertPdfFile, movePage, rotatePage } from '../store/pageActions';
+import { CopyPlus } from 'lucide-react';
 
 const THUMB_WIDTH = 128;
 const DRAG_TYPE = 'application/x-pdf-editor-page';
@@ -136,6 +137,7 @@ const Thumbnail = memo(function Thumbnail({ page, total, active, edits }: { page
         <PageAction title="Rotate right" onClick={() => rotatePage(i, 90)}><RotateCw size={13} /></PageAction>
         <PageAction title="Move up" disabled={i === 0} onClick={() => movePage(i, i - 1)}><ArrowUp size={13} /></PageAction>
         <PageAction title="Move down" disabled={i === total - 1} onClick={() => movePage(i, i + 1)}><ArrowDown size={13} /></PageAction>
+        <PageAction title="Duplicate page" onClick={() => duplicatePage(i)}><CopyPlus size={13} /></PageAction>
         <PageAction title="Delete page" danger disabled={total <= 1} onClick={() => deletePage(i)}><Trash2 size={13} /></PageAction>
       </div>
     </div>

@@ -235,6 +235,8 @@ export interface TextEditObject extends BaseObject {
   calibs: number[];
   calib: number;
   maskColor: string;
+  /** The text was recognised on a scanned picture (OCR): there is no real text underneath. */
+  ocr?: boolean;
   origFontName: string;
   fontMatch: 'standard' | 'custom' | 'substituted';
 }

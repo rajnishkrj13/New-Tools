@@ -12,6 +12,7 @@ import { applyChanges, downloadPdf } from '../hooks/useExport';
 import { insertImageFile, openPdfFile } from '../hooks/usePdfDocument';
 import { getState, useEditorStore } from '../store/documentStore';
 import { openSearch } from '../store/searchActions';
+import { FileMenu } from './FileMenu';
 import { Link2, MessageSquare, Search, SquarePen, Stamp } from 'lucide-react';
 import { insertTable } from '../store/imageActions';
 
@@ -356,6 +357,7 @@ export function Toolbar() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <FileMenu />
           <button
             type="button"
             onClick={applyChanges}

@@ -15,6 +15,24 @@ import { measureText } from '../utils/fontUtils';
 const models = new Map<number, PageTextModel>();
 const pending = new Map<number, Promise<PageTextModel>>();
 
+/**
+ * Text recognised on scanned pages (OCR), by page id and rotation. It stands in for the
+ * text a page does not have, so Edit Text, Highlight and Find work on scans too.
+ */
+const ocrItems = new Map<string, RawTextItem[]>();
+let ocrScope = '';
+const ocrKey = (info: PageInfo) => `${ocrScope}|${info.id}r${info.rotation}`;
+/** Results belong to one open document; another document starts with none. */
+export const setOcrScope = (scope: string) => {
+  ocrScope = scope;
+};
+export const getOcrItems = (info: PageInfo): RawTextItem[] => ocrItems.get(ocrKey(info)) ?? [];
+export function setOcrItems(info: PageInfo, items: RawTextItem[]) {
+  ocrItems.set(ocrKey(info), items);
+  models.delete(info.index);
+  pending.delete(info.index);
+}
+
 export const clearTextCache = () => {
   models.clear();
   pending.clear();
@@ -163,13 +181,15 @@ export function loadTextModel(page: PDFPageProxy | null, info: PageInfo): Promis
   let p = pending.get(info.index);
   if (!p) {
     const raw = page ? readRawItems(page, info) : Promise.resolve({ items: [], skipped: 0 });
-    p = raw.then(({ items, skipped }) => {
+    p = raw.then(({ items: found, skipped }) => {
+      // A page without text of its own (a scan) uses what OCR recognised, if it was run.
+      const items = found.length ? found : getOcrItems(info);
       const key = `${info.id}r${info.rotation}`;
       const lines = buildLines(items, info.index, key);
       const model: PageTextModel = {
         pageIndex: info.index,
         lines,
-        paragraphs: groupParagraphs(lines, info.index, info.height, key),
+        paragraphs: groupParagraphs(lines, info.index, info.height, key, info.width),
         skipped,
       };
       // Pages changed while the text was being read: the result belongs to an old layout.

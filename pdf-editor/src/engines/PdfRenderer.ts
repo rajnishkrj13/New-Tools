@@ -366,3 +366,49 @@ export async function findFormFields(info: PageInfo): Promise<PageFormField[]> {
     return [];
   }
 }
+
+/** Draws every page of a finished PDF as a picture (used by "Export as images"). */
+export async function renderPdfToImages(
+  bytes: Uint8Array,
+  type: 'image/png' | 'image/jpeg',
+  dpi: number,
+  onProgress?: (done: number, total: number) => void,
+): Promise<Uint8Array[]> {
+  const doc = await parse(bytes);
+  try {
+    const out: Uint8Array[] = [];
+    for (let i = 0; i < doc.numPages; i++) {
+      onProgress?.(i, doc.numPages);
+      const page: any = await doc.getPage(i + 1);
+      const info = makePageInfo({ id: `x:${i}`, source: 'x', srcIndex: i, viewBox: [...page.view] as PageInfo['viewBox'], userUnit: page.userUnit || 1, baseRotation: page.rotate || 0 }, i);
+      const canvas = await renderPage(page, info, dpi / 72, 1).promise;
+      if (!canvas) throw new Error('Rendering was interrupted');
+      const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, type, 0.92));
+      release(canvas);
+      if (!blob) throw new Error(`Page ${i + 1} could not be converted to a picture`);
+      out.push(new Uint8Array(await blob.arrayBuffer()));
+    }
+    return out;
+  } finally {
+    await doc.destroy().catch(() => undefined);
+  }
+}
+
+/** The text of every page of a finished PDF, in reading order (used by "Export text"). */
+export async function extractPdfText(bytes: Uint8Array): Promise<string[]> {
+  const { readRawItems, buildLines } = await import('./PdfTextExtractor');
+  const doc = await parse(bytes);
+  try {
+    const out: string[] = [];
+    for (let i = 0; i < doc.numPages; i++) {
+      const page: any = await doc.getPage(i + 1);
+      const info = makePageInfo({ id: `x:${i}`, source: 'x', srcIndex: i, viewBox: [...page.view] as PageInfo['viewBox'], userUnit: page.userUnit || 1, baseRotation: page.rotate || 0 }, i);
+      const { items } = await readRawItems(page, info);
+      const lines = buildLines(items, i).sort((a, b) => a.baseline - b.baseline || a.x - b.x);
+      out.push(lines.map((l) => l.text.trimEnd()).join('\n'));
+    }
+    return out;
+  } finally {
+    await doc.destroy().catch(() => undefined);
+  }
+}

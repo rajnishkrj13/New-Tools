@@ -3,6 +3,8 @@ import { CircleCheck, CircleX, Info, Loader2, TriangleAlert, X } from 'lucide-re
 import { ExportDialog } from './components/ExportDialog';
 import { PdfViewer } from './components/PdfViewer';
 import { SearchPanel } from './components/SearchPanel';
+import { TabBar } from './components/TabBar';
+import { PromptDialog } from './components/PromptDialog';
 import { PageElementsDialog } from './components/PageElementsDialog';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
@@ -56,6 +58,7 @@ function Editor() {
   return (
     <div {...getRootProps()} className="flex h-screen flex-col overflow-hidden bg-workspace outline-none">
       <Toolbar />
+      <TabBar />
       {error && (
         <div role="alert" className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           <TriangleAlert size={15} className="shrink-0" />
@@ -88,6 +91,7 @@ export default function App() {
     <>
       {hasDoc ? <Editor /> : <UploadDropzone />}
       <SignatureEditor />
+      <PromptDialog />
       <PageElementsDialog />
       <ExportDialog />
       <Toasts />

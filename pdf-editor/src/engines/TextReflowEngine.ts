@@ -156,7 +156,7 @@ export function detectSoftBreaks(lines: TextLine[], right: number): boolean[] {
  * Groups lines into paragraphs: same font size, consistent left margin (allowing a
  * first-line indent), consistent line spacing and horizontal overlap.
  */
-export function groupParagraphs(lines: TextLine[], pageIndex: number, pageHeight: number, key = String(pageIndex)): Paragraph[] {
+export function groupParagraphs(lines: TextLine[], pageIndex: number, pageHeight: number, key = String(pageIndex), pageWidth = 0): Paragraph[] {
   const sorted = [...lines].sort((a, b) => a.baseline - b.baseline || a.x - b.x);
   interface Draft {
     lines: TextLine[];
@@ -192,7 +192,10 @@ export function groupParagraphs(lines: TextLine[], pageIndex: number, pageHeight
     }
   }
 
-  const pageRight = lines.reduce((m, l) => Math.max(m, l.right), 0);
+  // Text may run as far as the widest line, or up to a right margin as wide as the left one,
+  // so a line that is itself the widest on its page can still grow a little when edited.
+  const leftMargin = lines.reduce((m, l) => Math.min(m, l.x), Infinity);
+  const pageRight = Math.max(lines.reduce((m, l) => Math.max(m, l.right), 0), pageWidth && Number.isFinite(leftMargin) ? pageWidth - leftMargin : 0);
   return drafts.map((d, idx) => {
     const fontSize = median(d.lines.map((l) => l.fontSize));
     const top = Math.min(...d.lines.map((l) => l.top));

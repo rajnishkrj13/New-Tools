@@ -15,3 +15,19 @@ for (const dir of ['cmaps', 'standard_fonts']) {
   cpSync(join(src, dir), join(dest, dir), { recursive: true });
 }
 console.log('[copy-pdfjs-assets] copied cmaps and standard_fonts to public/pdfjs');
+
+// Text recognition (OCR): worker, WebAssembly engine and language data, also served locally.
+const ocr = join(root, 'public', 'ocr');
+const modules = join(root, 'node_modules');
+if (existsSync(join(modules, 'tesseract.js'))) {
+  mkdirSync(join(ocr, 'core'), { recursive: true });
+  mkdirSync(join(ocr, 'lang'), { recursive: true });
+  cpSync(join(modules, 'tesseract.js', 'dist', 'worker.min.js'), join(ocr, 'worker.min.js'));
+  for (const core of ['tesseract-core-lstm', 'tesseract-core-simd-lstm', 'tesseract-core-relaxedsimd-lstm']) {
+    for (const ext of ['.wasm.js', '.js', '.wasm']) cpSync(join(modules, 'tesseract.js-core', core + ext), join(ocr, 'core', core + ext));
+  }
+  for (const lang of ['eng', 'hin']) {
+    cpSync(join(modules, '@tesseract.js-data', lang, '4.0.0_best_int', lang + '.traineddata.gz'), join(ocr, 'lang', lang + '.traineddata.gz'));
+  }
+  console.log('[copy-pdfjs-assets] copied the OCR engine and language data to public/ocr');
+}

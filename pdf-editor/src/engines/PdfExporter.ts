@@ -40,7 +40,10 @@ import {
   rgb,
   setCharacterSqueeze,
   setLineJoin,
+  setTextRenderingMode,
+  TextRenderingMode,
 } from 'pdf-lib';
+import type { RawTextItem } from '../types/text';
 import fontkit from '@pdf-lib/fontkit';
 import { isPageEdit } from '../types/objects';
 import type { EditorObject, FormValues, ImageAsset, ImageCutObject, TextEditObject, TextStyle } from '../types/objects';
@@ -80,6 +83,8 @@ export interface ExportInput {
   sources?: Record<string, Uint8Array>;
   /** Values for the form fields the PDF already has, by field name. */
   formValues?: FormValues;
+  /** Text recognised on scanned pages (by page index), written as a hidden searchable layer. */
+  ocrText?: Record<number, RawTextItem[]>;
   /**
    * Glyph positions of a page's own text operators (from PDF.js). When given, edited
    * original text is deleted from the file; without it the text is only covered.
@@ -103,6 +108,8 @@ export interface ExportResult {
   shapedRuns: number;
   /** True when pages were moved, rotated, added or deleted. */
   structureChanged: boolean;
+  /** Recognised (OCR) words written as a hidden, searchable text layer. */
+  ocrWords: number;
   warnings: string[];
 }
 
@@ -278,7 +285,9 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     if (!byPage.has(o.pageIndex)) byPage.set(o.pageIndex, []);
     byPage.get(o.pageIndex)!.push(o);
   }
-  const pageIndexes = [...byPage.keys()].sort((a, b) => a - b);
+  const ocrPages = Object.keys(input.ocrText ?? {}).map(Number).filter((i) => input.pages[i] && input.ocrText![i].length);
+  const pageIndexes = [...new Set([...byPage.keys(), ...ocrPages])].sort((a, b) => a - b);
+  let ocrWords = 0;
   const flattenedPages: number[] = [];
   const coveredPages = new Set<number>();
   let removedGlyphs = 0;
@@ -302,7 +311,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     const pageIndex = pageIndexes[n];
     onProgress?.(n, pageIndexes.length, `Writing page ${pageIndex + 1}`);
     const info = input.pages[pageIndex];
-    const list = byPage.get(pageIndex)!;
+    const list = byPage.get(pageIndex) ?? [];
     let page = doc.getPage(pageIndex);
     let toPdf: Matrix = invert(info.viewTransform);
 
@@ -386,7 +395,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
       page.pushOperators(popGraphicsState());
     };
 
-    const drawRun = (base: Matrix, run: TextRun, pieces: Piece[], style: TextStyle) => {
+    const drawRun = (base: Matrix, run: TextRun, pieces: Piece[], style: TextStyle, invisible = false) => {
       const color = hexToRgb(style.color);
       const total = pieces.length > 1 ? measureText(run.text, style) || 1 : 1;
       for (const piece of pieces) {
@@ -403,6 +412,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
             const natural = shaped.advance * run.fontSize;
             const sx = natural > 0 && width > 0 ? clamp(width / natural, 0.5, 2) : 1;
             const ops = [beginText(), setFillingColor(color), setFontAndSize(fontKeyOn(page, piece.font), run.fontSize)];
+            if (invisible) ops.push(setTextRenderingMode(TextRenderingMode.Invisible));
             if (style.opacity < 1) {
               const gs = page.node.newExtGState('GS', doc.context.obj({ Type: 'ExtGState', ca: style.opacity, CA: style.opacity }));
               ops.unshift(setGraphicsState(gs));
@@ -433,6 +443,8 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
         // whatever the metric differences between the browser font and the PDF font.
         const squeeze = natural > 0 && width > 0 ? clamp((width / natural) * 100, 50, 200) : 100;
         const pre = Math.abs(squeeze - 100) > 0.5 ? [setCharacterSqueeze(squeeze)] : [];
+        // Recognised text of a scan: in the file for search and copy, but not painted.
+        if (invisible) pre.push(setTextRenderingMode(TextRenderingMode.Invisible));
         inView(
           mul(base, mul(translate(run.x + offset, run.baseline), FLIP_Y)),
           () => {
@@ -476,7 +488,8 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
           for (const m of layout.masks) {
             // Text that was really removed needs no cover; the rest is covered as before.
             if (removedMasks.has(m)) continue;
-            coveredPages.add(pageIndex);
+            // On a scan the "text" is a picture: covering it is all there is to do, and nothing is left to find.
+            if (!o.ocr) coveredPages.add(pageIndex);
             inView(boxFrame(m), () => page.drawRectangle({ x: 0, y: 0, width: m.width, height: m.height, color: mask }));
           }
           if (pieces.every(Boolean)) layout.runs.forEach((run, k) => drawRun([1, 0, 0, 1, 0, 0], run, pieces[k]!, o.style));
@@ -677,6 +690,27 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
       }
       written++;
     }
+
+    // Text recognised on a scanned page (OCR) becomes an invisible text layer, so the
+    // exported PDF can be searched and copied from. Words the user edited are left out.
+    const words = redactions.length ? [] : input.ocrText?.[pageIndex] ?? [];
+    if (words.length) {
+      const masks = edits.flatMap((e) => layoutTextEdit(e).masks);
+      const style: TextStyle = { fontFamily: 'Helvetica', fontSize: 10, bold: false, italic: false, underline: false, color: '#000000', align: 'left', opacity: 1 };
+      for (const w of words) {
+        const cx = w.x + w.width / 2;
+        if (masks.some((m) => cx >= m.x && cx <= m.x + m.width && w.baseline >= m.y && w.baseline <= m.y + m.height + 2)) continue;
+        const run: TextRun = { text: w.str, x: w.x, baseline: w.baseline, width: w.width, fontSize: w.fontSize };
+        const pieces = await piecesFor(w.str, style, pageIndex).catch(() => null);
+        // A word no font can encode is simply not added to the hidden layer.
+        if (!pieces) {
+          unsupported.pop();
+          continue;
+        }
+        drawRun([1, 0, 0, 1, 0, 0], run, pieces, style, true);
+        ocrWords++;
+      }
+    }
   }
 
   if (unsupported.length) {
@@ -749,7 +783,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     throw new ExportError(`The exported PDF failed validation (${e?.message ?? e}). Nothing was downloaded.`);
   }
 
-  return { bytes, pagesModified: pageIndexes.length, objectsWritten: written, flattenedPages, removedGlyphs, removedImages, shapedRuns, structureChanged, warnings };
+  return { bytes, pagesModified: pageIndexes.length, objectsWritten: written, flattenedPages, removedGlyphs, removedImages, shapedRuns, structureChanged, ocrWords, warnings };
 }
 
 /**
@@ -778,9 +812,22 @@ async function applyPageStructure(doc: PDFDocument, input: ExportInput): Promise
         }
       }
     }
+    // A page that appears more than once (a duplicate) needs its own copy for every extra use.
+    const copied = new Map<string, PDFPage[]>();
+    const queue = (key: string, pages: PDFPage[]) => copied.set(key, [...(copied.get(key) ?? []), ...pages]);
+    const seenMain = new Set<number>();
+    const extraMain: number[] = [];
+    for (const p of slots) {
+      if (p.source !== 'main') continue;
+      if (seenMain.has(p.srcIndex)) extraMain.push(p.srcIndex);
+      seenMain.add(p.srcIndex);
+    }
+    if (extraMain.length) {
+      const pages = await doc.copyPages(doc, extraMain);
+      extraMain.forEach((idx, k) => queue(`main:${idx}`, [pages[k]]));
+    }
     for (let i = originals.length - 1; i >= 0; i--) doc.removePage(i);
 
-    const copied = new Map<string, PDFPage>();
     for (const source of new Set(slots.map((p) => p.source))) {
       if (source === 'main' || source === 'blank') continue;
       let src: PDFDocument;
@@ -791,18 +838,19 @@ async function applyPageStructure(doc: PDFDocument, input: ExportInput): Promise
       }
       const wanted = slots.filter((p) => p.source === source).map((p) => p.srcIndex);
       const pages = await doc.copyPages(src, wanted);
-      wanted.forEach((idx, k) => copied.set(`${source}:${idx}`, pages[k]));
+      wanted.forEach((idx, k) => queue(`${source}:${idx}`, [pages[k]]));
     }
 
     const kept = new Set<number>();
     for (const p of slots) {
       if (p.source === 'main') {
+        // First use: the original page itself. Further uses: its copies.
+        doc.addPage(kept.has(p.srcIndex) ? copied.get(`main:${p.srcIndex}`)!.shift()! : originals[p.srcIndex]);
         kept.add(p.srcIndex);
-        doc.addPage(originals[p.srcIndex]);
       } else if (p.source === 'blank') {
         doc.addPage([p.viewBox[2] - p.viewBox[0], p.viewBox[3] - p.viewBox[1]]);
       } else {
-        doc.addPage(copied.get(`${p.source}:${p.srcIndex}`)!);
+        doc.addPage(copied.get(`${p.source}:${p.srcIndex}`)!.shift()!);
       }
     }
     // Deleted pages: remove the page object and its content so their text is not left in the file.

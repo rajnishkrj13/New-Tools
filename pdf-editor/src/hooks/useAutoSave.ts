@@ -1,20 +1,18 @@
 import type { EditorObject, FormValues, ImageAsset } from '../types/objects';
 import type { PageInfo } from '../types/pdf';
 import { listCustomFonts, registerCustomFontBytes } from '../engines/FontManager';
-import { loadPdf, openSource, readDocument } from '../engines/PdfRenderer';
-import { clearTextCache } from '../engines/PdfTextExtractor';
 import { invalidateLayouts } from '../engines/TextEditLayout';
 import { getState, useEditorStore } from '../store/documentStore';
-import { idbClear, idbGet, idbPut } from '../utils/sessionStore';
-import { checkExportable } from './usePdfDocument';
+import { onTabClosed, parkDocument, switchTab } from '../store/tabActions';
+import { idbClear, idbDeleteRange, idbGet, idbPut } from '../utils/sessionStore';
 
 /**
- * Auto-save: the open document and everything done to it are kept in this browser's
- * IndexedDB, so closing the tab or a crash does not lose work. One document is kept (the
- * last one opened). Nothing is uploaded; switching auto-save off erases the stored copy.
+ * Auto-save: every open document and what was done to it are kept in this browser's
+ * IndexedDB, so closing the tab or a crash does not lose work. Nothing is uploaded;
+ * switching auto-save off erases the stored copies.
  *
- * Stored: the PDF, added PDFs, inserted images, uploaded fonts, the page list and all
- * edits. Not stored: the undo history.
+ * Stored per document: the PDF, added PDFs, inserted images, the page list, all edits and
+ * form values. Stored once: uploaded fonts. Not stored: the undo history.
  */
 
 export interface SavedSession {
@@ -31,13 +29,20 @@ export interface SavedSession {
   formValues?: FormValues;
 }
 
+interface SavedIndex {
+  tabs: { id: string; name: string }[];
+  active: string | null;
+}
+
 const PREF_KEY = 'pdf-editor:autosave';
 const DELAY_MS = 600;
+/** A session saved before documents had tabs lives at the top level of the store. */
+const LEGACY = 'legacy';
+const key = (tab: string, name: string) => (tab === LEGACY ? name : `${tab}/${name}`);
 
-/** Bytes of the document whose base copy is in storage. */
-let baseSaved: Uint8Array | null = null;
-/** Keys of large blobs (images, added PDFs, fonts) already written for this document. */
-const savedBlobs = new Set<string>();
+/** What is already in storage for each document: its PDF and the large blobs written so far. */
+const records = new Map<string, { base: Uint8Array | null; blobs: Set<string> }>();
+const savedFonts = new Set<string>();
 let chain: Promise<unknown> = Promise.resolve();
 let timer: ReturnType<typeof setTimeout> | null = null;
 let warned = false;
@@ -64,31 +69,34 @@ function enqueue(work: () => Promise<void>) {
 
 async function writeState() {
   const s = getState();
-  if (!enabled() || !s.doc || !s.bytes) return;
-  if (s.bytes !== baseSaved) {
-    // A different document: start its stored copy from scratch.
-    await idbClear();
-    savedBlobs.clear();
-    await idbPut('main', s.bytes);
-    baseSaved = s.bytes;
+  const tab = s.activeTab;
+  if (!enabled() || !s.doc || !s.bytes || !tab) return;
+  let rec = records.get(tab);
+  if (!rec) records.set(tab, (rec = { base: null, blobs: new Set() }));
+  if (s.bytes !== rec.base) {
+    // First save of this document (or its file changed): start its stored copy from scratch.
+    await idbDeleteRange(tab);
+    rec.blobs.clear();
+    await idbPut(key(tab, 'main'), s.bytes);
+    rec.base = s.bytes;
   }
   for (const [id, src] of Object.entries(s.sources)) {
-    if (savedBlobs.has(`src:${id}`)) continue;
-    await idbPut(`src:${id}`, src.bytes);
-    savedBlobs.add(`src:${id}`);
+    if (rec.blobs.has(`src:${id}`)) continue;
+    await idbPut(key(tab, `src:${id}`), src.bytes);
+    rec.blobs.add(`src:${id}`);
   }
   // Only images that are still used; one removed long ago is not written again.
   const used = new Set(s.objects.map((o) => (o.type === 'image' ? o.assetId : '')));
   for (const asset of Object.values(s.assets)) {
-    if (!used.has(asset.id) || savedBlobs.has(`asset:${asset.id}`)) continue;
-    await idbPut(`asset:${asset.id}`, asset.bytes);
-    savedBlobs.add(`asset:${asset.id}`);
+    if (!used.has(asset.id) || rec.blobs.has(`asset:${asset.id}`)) continue;
+    await idbPut(key(tab, `asset:${asset.id}`), asset.bytes);
+    rec.blobs.add(`asset:${asset.id}`);
   }
   const fonts = listCustomFonts();
   for (const f of fonts) {
-    if (savedBlobs.has(`font:${f.id}`)) continue;
+    if (savedFonts.has(f.id)) continue;
     await idbPut(`font:${f.id}`, f.custom!.bytes);
-    savedBlobs.add(`font:${f.id}`);
+    savedFonts.add(f.id);
   }
   const session: SavedSession = {
     version: 1,
@@ -105,8 +113,9 @@ async function writeState() {
     formValues: s.formValues,
   };
   // Written last: a session is only valid once everything it refers to is stored.
-  await idbPut('meta', session);
-  if (getState().bytes === s.bytes) getState().setAutoSave({ status: 'saved', at: session.savedAt });
+  await idbPut(key(tab, 'meta'), session);
+  await idbPut('index', { tabs: getState().tabs, active: getState().activeTab } satisfies SavedIndex);
+  if (getState().activeTab === tab && getState().bytes === s.bytes) getState().setAutoSave({ status: 'saved', at: session.savedAt });
 }
 
 function schedule(delay = DELAY_MS) {
@@ -133,6 +142,11 @@ export function hasUnsavedWork(): boolean {
   return !s.autoSave.enabled || s.autoSave.status !== 'saved' || timer !== null;
 }
 
+function forgetEverything() {
+  records.clear();
+  savedFonts.clear();
+}
+
 export function setAutoSaveEnabled(on: boolean) {
   try {
     localStorage.setItem(PREF_KEY, on ? 'on' : 'off');
@@ -147,8 +161,7 @@ export function setAutoSaveEnabled(on: boolean) {
     schedule(0);
   } else {
     // Off means no copy is left behind.
-    baseSaved = null;
-    savedBlobs.clear();
+    forgetEverything();
     enqueue(idbClear);
   }
 }
@@ -165,9 +178,19 @@ export function initAutoSave() {
   useEditorStore.subscribe((s, prev) => {
     if (!s.doc) return;
     if (s.bytes !== prev.bytes && s.autoSave.status !== 'idle') s.setAutoSave({ status: 'idle', at: null });
-    if (s.bytes !== prev.bytes || s.objects !== prev.objects || s.pages !== prev.pages || s.sources !== prev.sources || s.formValues !== prev.formValues || s.fontVersion !== prev.fontVersion) {
+    if (
+      s.bytes !== prev.bytes || s.objects !== prev.objects || s.pages !== prev.pages || s.sources !== prev.sources ||
+      s.formValues !== prev.formValues || s.fontVersion !== prev.fontVersion || s.tabs !== prev.tabs
+    ) {
       schedule();
     }
+  });
+  onTabClosed((id) => {
+    records.delete(id);
+    enqueue(async () => {
+      await idbDeleteRange(id);
+      await idbPut('index', { tabs: getState().tabs, active: getState().activeTab } satisfies SavedIndex);
+    });
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushAutoSave();
@@ -175,87 +198,95 @@ export function initAutoSave() {
   window.addEventListener('pagehide', () => void flushAutoSave());
 }
 
-/** The session waiting in storage, if there is one. */
-export async function getSavedSession(): Promise<SavedSession | null> {
+export interface SavedSummary {
+  id: string;
+  session: SavedSession;
+}
+
+/** The documents waiting in storage, in tab order. */
+export async function getSavedSessions(): Promise<{ list: SavedSummary[]; active: string | null }> {
+  const valid = (m: SavedSession | undefined): m is SavedSession => m?.version === 1 && Array.isArray(m.pages) && Array.isArray(m.objects);
   try {
-    const meta = await idbGet<SavedSession>('meta');
-    return meta?.version === 1 && Array.isArray(meta.pages) && Array.isArray(meta.objects) ? meta : null;
+    const index = await idbGet<SavedIndex>('index');
+    if (!index) {
+      const old = await idbGet<SavedSession>('meta');
+      return valid(old) ? { list: [{ id: LEGACY, session: old }], active: LEGACY } : { list: [], active: null };
+    }
+    const list: SavedSummary[] = [];
+    for (const tab of index.tabs) {
+      const meta = await idbGet<SavedSession>(key(tab.id, 'meta'));
+      if (valid(meta)) list.push({ id: tab.id, session: meta });
+    }
+    return { list, active: list.some((x) => x.id === index.active) ? index.active : list[0]?.id ?? null };
   } catch {
-    return null;
+    return { list: [], active: null };
   }
 }
 
-export async function discardSavedSession() {
-  baseSaved = null;
-  savedBlobs.clear();
+export async function discardSavedSessions() {
+  forgetEverything();
   await enqueue(idbClear);
 }
 
-/** Reopens the saved document exactly as it was left. Returns false if it could not be restored. */
-export async function resumeSavedSession(): Promise<boolean> {
+/** Reopens every saved document as it was left, each in its tab. Returns false if nothing could be restored. */
+export async function resumeSavedSessions(): Promise<boolean> {
   const s = getState();
-  s.setLoading('Restoring your document…');
+  s.setLoading('Restoring your documents…');
   try {
-    const meta = await getSavedSession();
-    const bytes = await idbGet<Uint8Array>('main');
-    if (!meta || !bytes) throw new Error('The saved copy is incomplete.');
-
-    const doc = await loadPdf(bytes);
-    clearTextCache();
-    const { info, pages: fresh } = await readDocument(doc, meta.fileName, bytes.length);
-
-    const sources: Record<string, { name: string; bytes: Uint8Array }> = {};
-    for (const src of meta.sources) {
-      const b = await idbGet<Uint8Array>(`src:${src.id}`);
-      if (!b) continue;
-      await openSource(src.id, b);
-      sources[src.id] = { name: src.name, bytes: b };
-      savedBlobs.add(`src:${src.id}`);
+    const saved = await getSavedSessions();
+    const tabs: { id: string; name: string }[] = [];
+    for (const { id, session: meta } of saved.list) {
+      const bytes = await idbGet<Uint8Array>(key(id, 'main'));
+      if (!bytes) continue;
+      const blobs = new Set<string>();
+      const sources: Record<string, { name: string; bytes: Uint8Array }> = {};
+      for (const src of meta.sources) {
+        const b = await idbGet<Uint8Array>(key(id, `src:${src.id}`));
+        if (!b) continue;
+        sources[src.id] = { name: src.name, bytes: b };
+        blobs.add(`src:${src.id}`);
+      }
+      const assets: Record<string, ImageAsset> = {};
+      for (const a of meta.assets) {
+        const b = await idbGet<Uint8Array>(key(id, `asset:${a.id}`));
+        if (!b) continue;
+        assets[a.id] = { ...a, bytes: b, url: URL.createObjectURL(new Blob([b.slice().buffer], { type: a.mime })) };
+        blobs.add(`asset:${a.id}`);
+      }
+      for (const f of meta.fonts) {
+        if (savedFonts.has(f.id)) continue;
+        const b = (await idbGet<Uint8Array>(`font:${f.id}`)) ?? (await idbGet<Uint8Array>(key(id, `font:${f.id}`)));
+        if (b && (await registerCustomFontBytes(f.name, b).catch(() => null))) savedFonts.add(f.id);
+      }
+      // Edits can only come back when their page and picture did.
+      const pages = meta.pages.filter((p) => p.source === 'main' || p.source === 'blank' || !!sources[p.source]).map((p, i) => ({ ...p, index: i }));
+      const kept = new Map(pages.map((p) => [p.id, p.index]));
+      const objects = meta.objects
+        .filter((o) => kept.has(meta.pages[o.pageIndex]?.id) && (o.type !== 'image' || !!assets[o.assetId]))
+        .map((o) => ({ ...o, pageIndex: kept.get(meta.pages[o.pageIndex].id)! }));
+      if (!pages.length) continue;
+      // A session from before tabs existed is saved again under its own tab.
+      const tabId = id === LEGACY ? `doc-${Date.now().toString(36)}` : id;
+      parkDocument(tabId, {
+        doc: { fileName: meta.fileName, fileSize: bytes.length, numPages: pages.length, exportable: true },
+        pages, bytes, objects, assets, sources, formValues: meta.formValues ?? {},
+        dirty: objects.length > 0 || Object.keys(meta.formValues ?? {}).length > 0,
+      });
+      records.set(tabId, { base: id === LEGACY ? null : bytes, blobs: id === LEGACY ? new Set() : blobs });
+      tabs.push({ id: tabId, name: meta.fileName });
     }
-    const assets: Record<string, ImageAsset> = {};
-    for (const a of meta.assets) {
-      const b = await idbGet<Uint8Array>(`asset:${a.id}`);
-      if (!b) continue;
-      assets[a.id] = { ...a, bytes: b, url: URL.createObjectURL(new Blob([b.slice().buffer], { type: a.mime })) };
-      savedBlobs.add(`asset:${a.id}`);
-    }
-    for (const f of meta.fonts) {
-      const b = await idbGet<Uint8Array>(`font:${f.id}`);
-      if (!b) continue;
-      await registerCustomFontBytes(f.name, b).catch(() => undefined);
-      savedBlobs.add(`font:${f.id}`);
-    }
-
-    // Use the saved page list only if every page it names can still be shown.
-    const valid = meta.pages.length > 0 && meta.pages.every((p) =>
-      p.source === 'blank' || (p.source === 'main' ? p.srcIndex < fresh.length : !!sources[p.source]),
-    );
-    const pages = valid ? meta.pages : fresh;
-    let lost = 0;
-    const objects = meta.objects.filter((o) => {
-      const ok = o.pageIndex < pages.length && (valid || o.pageIndex < fresh.length) && (o.type !== 'image' || !!assets[o.assetId]);
-      if (!ok) lost++;
-      return ok;
-    });
-
-    baseSaved = bytes;
+    if (!tabs.length) throw new Error('The saved copy is incomplete.');
+    if (saved.list.some((x) => x.id === LEGACY)) await enqueue(idbClear).then(() => savedFonts.clear());
     invalidateLayouts();
-    getState().openDocument(info, pages, bytes);
-    getState().restoreSession(objects, assets, sources, meta.formValues ?? {});
+    useEditorStore.setState({ tabs, activeTab: null });
+    const first = tabs.find((t) => t.id === saved.active) ?? tabs[0];
+    await switchTab(first.id);
     getState().bumpFonts();
-    getState().setAutoSave({ status: 'saved', at: meta.savedAt });
-    requestAnimationFrame(() => {
-      getState().fitWidth();
-      requestAnimationFrame(() => getState().goToPage(0));
-    });
-    checkExportable(bytes);
-    if (!valid || lost) {
-      getState().toast(`The document was restored, but ${lost || 'some'} saved change${lost === 1 ? '' : 's'} could not be brought back.`, 'warning');
-    }
-    return true;
+    requestAnimationFrame(() => getState().fitWidth());
+    return !!getState().doc;
   } catch (e: any) {
     getState().setLoading(null);
-    getState().setError(`Your saved document could not be restored: ${e?.message ?? 'unknown error'}`);
+    getState().setError(`Your saved documents could not be restored: ${e?.message ?? 'unknown error'}`);
     return false;
   }
 }

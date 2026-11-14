@@ -5,6 +5,9 @@ import { clearTextCache } from '../engines/PdfTextExtractor';
 import { getState } from '../store/documentStore';
 import { importImageFile, newId } from '../utils/imageUtils';
 import { validatePdfFile } from '../utils/validationUtils';
+import { looksEncrypted, unlockPdf, WrongPasswordError } from '../engines/PdfTools';
+import { askText } from '../store/promptActions';
+import { beginNewTab } from '../store/tabActions';
 
 /** Checks in the background that the open file can also be rewritten, and says so if not. */
 export function checkExportable(bytes: Uint8Array) {
@@ -22,6 +25,41 @@ export function checkExportable(bytes: Uint8Array) {
   }, 50);
 }
 
+/**
+ * Protected PDFs: returns an unprotected copy to work on, asking for the password when the
+ * file needs one to open. Returns null when the user cancels. A file that only restricts
+ * editing is unlocked without a question.
+ */
+async function ensureUnlocked(name: string, bytes: Uint8Array): Promise<Uint8Array | null> {
+  if (!looksEncrypted(bytes)) return bytes;
+  try {
+    await PDFDocument.load(bytes, { updateMetadata: false });
+    return bytes; // not actually encrypted
+  } catch (e: any) {
+    if (!/encrypt/i.test(e?.message ?? '')) return bytes;
+  }
+  try {
+    const plain = await unlockPdf(bytes, '');
+    getState().toast(`"${name}" was protected against editing. That protection is removed in the copy you are working on.`, 'info');
+    return plain;
+  } catch (e) {
+    if (!(e instanceof WrongPasswordError)) return bytes; // viewing may still work
+  }
+  let message = `"${name}" is protected. Enter its password to open it. The password is only used on this device.`;
+  for (;;) {
+    getState().setLoading(null);
+    const password = await askText({ title: 'Password needed', message, label: 'Password', password: true, okLabel: 'Open' });
+    if (password === null) return null;
+    getState().setLoading(`Opening ${name}…`);
+    try {
+      return await unlockPdf(bytes, password);
+    } catch (e) {
+      if (!(e instanceof WrongPasswordError)) throw e;
+      message = `That password did not open "${name}". Try again.`;
+    }
+  }
+}
+
 /** Opens a PDF from bytes that never leave this tab. */
 export async function openPdfBytes(name: string, bytes: Uint8Array) {
   const s = getState();
@@ -32,10 +70,16 @@ export async function openPdfBytes(name: string, bytes: Uint8Array) {
   }
   s.setLoading(`Opening ${name}…`);
   try {
+    const unlocked = await ensureUnlocked(name, bytes);
+    if (!unlocked) return getState().setLoading(null);
+    bytes = unlocked;
+    getState().setLoading(`Opening ${name}…`);
     const doc = await loadPdf(bytes);
     clearTextCache();
     const { info, pages } = await readDocument(doc, name, bytes.length);
     if (!pages.length) throw new Error('The PDF has no pages.');
+    // Each document gets its own tab; the one that was open is kept in the background.
+    beginNewTab(name);
     getState().openDocument(info, pages, bytes);
     requestAnimationFrame(() => {
       getState().fitWidth();
@@ -50,7 +94,6 @@ export async function openPdfBytes(name: string, bytes: Uint8Array) {
 
 export async function openPdfFile(file: File) {
   const s = getState();
-  if (s.doc && s.dirty && !window.confirm('Open another PDF? Edits that were not downloaded will be lost.')) return;
   s.setLoading(`Reading ${file.name}…`);
   try {
     await openPdfBytes(file.name, new Uint8Array(await file.arrayBuffer()));

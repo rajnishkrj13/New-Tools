@@ -23,7 +23,7 @@ The production build adds a Content-Security-Policy that blocks connections to o
 
 ```bash
 npm run make-samples   # writes test-assets/sample.pdf (5 pages) and sample-images.pdf (pictures)
-npm test               # 47 tests: engines (coordinates, reflow, export, fonts, shaping, page tools) and features (search, links, comments, forms, stamps, lists)
+npm test               # 55 tests: engines, features and file tools (ranges, ZIP, pictures to PDF, passwords, compression, duplicates, OCR layer)
 npm run typecheck
 ```
 
@@ -157,3 +157,29 @@ after the current page). All of it is undoable, and edits stay on their page.
 Limits: comments already in a PDF cannot be edited; form fields and links of pages added from
 another PDF are not editable; several selected objects can be moved but not resized together;
 the clipboard is internal to the editor.
+
+## File tools (File menu) and several documents
+
+- **Tabs**: every PDF you open gets its own tab; switch, close, or open more with "+".
+  Auto-save keeps all of them. Switching re-reads the file, which takes a moment for large PDFs.
+- **Extract pages**: save chosen pages (for example `1-3, 5`), with their edits, as a new PDF.
+  **Duplicate page** is on each thumbnail. **Add PDF** asks which pages to bring in.
+- **Export**: pages as PNG or JPG (several pages come as one ZIP), or all text as a `.txt` file.
+  There is no Word export.
+- **New PDF from pictures**: one page per PNG, JPG or WebP picture (File menu or start screen).
+- **Smaller file**: re-encodes photos (JPEG pictures in RGB or grey) at a lower resolution and
+  quality. Text, drawings and other picture types are left as they are, so a PDF without photos
+  does not get smaller.
+- **Passwords**: a protected PDF asks for its password and opens as an unprotected working copy
+  (files that only restrict editing open without a question). "Protect with a password" locks
+  every download of that document. The password is never stored; the auto-saved working copy in
+  this browser is the unprotected one.
+- **OCR** (Recognise text): reads the text of scanned pages in English and/or Hindi with
+  Tesseract, which is served by the app itself (`public/ocr`, copied on install). The text can
+  then be found, highlighted and edited, and the download carries it as a hidden searchable
+  layer. Results are kept until the document is closed or the page is reloaded; run it again to
+  edit recognised text after resuming. Editing a scan covers the old letters and draws new ones
+  in a standard font, so it will not match the scan's print exactly.
+
+Libraries added for these: `tesseract.js` (Apache-2.0), `@tesseract.js-data/eng` and `/hin`
+(MIT), `@cantoo/pdf-lib` (MIT, used only to add and remove passwords).

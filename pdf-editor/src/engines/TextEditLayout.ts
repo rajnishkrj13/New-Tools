@@ -122,6 +122,7 @@ export function createTextEdit(
     styled: false,
     ...computeCalibs(orig, style),
     maskColor: colors.background,
+    ocr: main.fontName === 'ocr' || undefined,
     origFontName: font.originalName,
     fontMatch: font.match,
   };

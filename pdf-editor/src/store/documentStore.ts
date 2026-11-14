@@ -6,6 +6,7 @@ import type { EditLevel, TextSelection } from '../types/text';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from './historyStore';
 import { newId } from '../utils/imageUtils';
 import { clearTextCache } from '../engines/PdfTextExtractor';
+import type { PromptRequest } from './promptActions';
 
 /** What one undo step restores: the edits and the page structure (order, rotation, added/deleted pages). */
 export interface Snapshot {
@@ -55,6 +56,15 @@ interface EditorState {
   /** Values typed into the form fields the PDF already has. */
   formValues: FormValues;
   setFormValue: (name: string, value: string | boolean) => void;
+  /** Open documents, one per tab; the editor shows `activeTab`. */
+  tabs: { id: string; name: string }[];
+  activeTab: string | null;
+  /** A question waiting for the user's answer (page range, password ...). */
+  prompt: PromptRequest | null;
+  setPrompt: (prompt: PromptRequest | null) => void;
+  /** When set, downloads of this document are protected with this password. Never stored. */
+  exportPassword: string | null;
+  setExportPassword: (password: string | null) => void;
   pageElementsOpen: boolean;
   setPageElementsOpen: (open: boolean) => void;
   editingTextId: string | null;
@@ -177,6 +187,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSearch: (patch) => set((s) => ({ search: { ...s.search, ...patch } })),
   formValues: {},
   setFormValue: (name, value) => set((s) => ({ formValues: { ...s.formValues, [name]: value }, dirty: true })),
+  tabs: [],
+  activeTab: null,
+  prompt: null,
+  setPrompt: (prompt) => set({ prompt }),
+  exportPassword: null,
+  setExportPassword: (exportPassword) => set({ exportPassword, dirty: true }),
   pageElementsOpen: false,
   setPageElementsOpen: (pageElementsOpen) => set({ pageElementsOpen }),
   editingTextId: null,
@@ -201,7 +217,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     Object.values(get().assets).forEach((a) => URL.revokeObjectURL(a.url));
     set((s) => ({
       doc, pages, bytes, docKey: s.docKey + 1, loading: null, error: null,
-      objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false, lastExport: null, exportState: idleExport,
+      objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false, lastExport: null, exportState: idleExport, exportPassword: null,
       selectedId: null, extraSelected: [], formValues: {}, editingTextId: null, editingCell: null, draftText: null, textSel: null, tool: 'select', currentPage: 0, scrollRequest: null,
       search: { ...s.search, hits: [], index: -1 },
     }));
