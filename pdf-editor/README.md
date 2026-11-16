@@ -23,7 +23,7 @@ The production build adds a Content-Security-Policy that blocks connections to o
 
 ```bash
 npm run make-samples   # writes test-assets/sample.pdf (5 pages) and sample-images.pdf (pictures)
-npm test               # 65 tests: engines, features, file tools, and protected PDFs built independently from the PDF specification (RC4-128, AES-128, AES-256)
+npm test               # 94 tests, including leak tests that read every object of the exported file
 npm run typecheck
 ```
 
@@ -183,3 +183,30 @@ the clipboard is internal to the editor.
 
 Libraries added for these: `tesseract.js` (Apache-2.0), `@tesseract.js-data/eng` and `/hin`
 (MIT), `@cantoo/pdf-lib` (MIT, used only to add and remove passwords).
+
+## Redaction and privacy
+
+- **Find and redact** (File menu, or Find): besides plain text, the search can look for email
+  addresses, phone numbers, ID and card numbers (PAN, Aadhaar with its check digit, US SSN,
+  payment cards with the Luhn check) or your own regular expression. "All matches" puts a
+  redaction box over every match; one undo takes the batch back. Patterns can miss or
+  over-match, so check the highlighted matches first. A match inside an added text box,
+  table or comment covers that object as a whole.
+- **What a redaction removes**: the page is rebuilt as a picture with the boxes burned in;
+  anything you added that overlaps a box is left out; bookmarks and links that pointed at the
+  old page now point at the new one; the page's form fields are taken out of the form;
+  accessibility tags are dropped (they can repeat the text). Every object nothing refers to any
+  more is then deleted from the file, so the old page is not left in the bytes. The same
+  clean-up runs when pages are deleted.
+- **Document properties**: edit or clear title, author, subject, keywords and program names.
+  The hidden XMP copy is removed so it cannot contradict them.
+- **Remove hidden data**: shows what the file carries (properties and metadata, comments,
+  attachments, scripts, bookmarks, thumbnails and other programs' data) and removes what you
+  tick. What you add yourself in the editor is kept.
+- **Protect**: AES-256, with an optional password to open and a separate one to change
+  settings, plus limits on printing (none / low quality), copying, editing, comments, forms and
+  page assembly. Restrictions are honoured by mainstream PDF programs but are not strong
+  protection; only the open password keeps the contents secret. Passwords are never saved.
+
+Not covered: text inside pictures that were not OCR'd, typed-in form field values (unless
+their page is redacted), hidden layers (optional content), and the file name.

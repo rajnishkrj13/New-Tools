@@ -7,6 +7,9 @@ import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } fro
 import { newId } from '../utils/imageUtils';
 import { clearTextCache } from '../engines/PdfTextExtractor';
 import type { PromptRequest } from './promptActions';
+import type { SearchMode } from '../engines/TextSearch';
+import { NO_CLEANING, type CleanOptions, type DocProps } from '../engines/PdfPrivacy';
+import type { Protection } from '../engines/PdfTools';
 
 /** What one undo step restores: the edits and the page structure (order, rotation, added/deleted pages). */
 export interface Snapshot {
@@ -51,7 +54,7 @@ interface EditorState {
   toggleSelect: (id: string) => void;
   selectMany: (ids: string[]) => void;
   /** Find and replace: the panel, what is searched and where it was found. */
-  search: { open: boolean; query: string; replace: string; matchCase: boolean; hits: SearchHit[]; index: number; busy: boolean };
+  search: { open: boolean; mode: SearchMode; query: string; replace: string; matchCase: boolean; hits: SearchHit[]; index: number; busy: boolean };
   setSearch: (patch: Partial<EditorState['search']>) => void;
   /** Values typed into the form fields the PDF already has. */
   formValues: FormValues;
@@ -62,9 +65,18 @@ interface EditorState {
   /** A question waiting for the user's answer (page range, password ...). */
   prompt: PromptRequest | null;
   setPrompt: (prompt: PromptRequest | null) => void;
-  /** When set, downloads of this document are protected with this password. Never stored. */
-  exportPassword: string | null;
-  setExportPassword: (password: string | null) => void;
+  /** When set, downloads of this document are protected like this. Never stored (it holds passwords). */
+  protection: Protection | null;
+  setProtection: (protection: Protection | null) => void;
+  /** Document properties to write on export (null: leave them as they are). */
+  docProps: DocProps | null;
+  setDocProps: (props: DocProps | null) => void;
+  /** Hidden data to remove from the original document on export. */
+  clean: CleanOptions;
+  setClean: (clean: CleanOptions) => void;
+  /** Which privacy dialog is open. */
+  privacyDialog: 'properties' | 'clean' | 'protect' | null;
+  setPrivacyDialog: (dialog: 'properties' | 'clean' | 'protect' | null) => void;
   pageElementsOpen: boolean;
   setPageElementsOpen: (open: boolean) => void;
   editingTextId: string | null;
@@ -183,7 +195,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { extraSelected: s.extraSelected.includes(id) ? s.extraSelected.filter((x) => x !== id) : [...s.extraSelected, id] };
     }),
   selectMany: (ids) => set({ selectedId: ids[0] ?? null, extraSelected: ids.slice(1), editingTextId: null }),
-  search: { open: false, query: '', replace: '', matchCase: false, hits: [], index: -1, busy: false },
+  search: { open: false, mode: 'text', query: '', replace: '', matchCase: false, hits: [], index: -1, busy: false },
   setSearch: (patch) => set((s) => ({ search: { ...s.search, ...patch } })),
   formValues: {},
   setFormValue: (name, value) => set((s) => ({ formValues: { ...s.formValues, [name]: value }, dirty: true })),
@@ -191,8 +203,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeTab: null,
   prompt: null,
   setPrompt: (prompt) => set({ prompt }),
-  exportPassword: null,
-  setExportPassword: (exportPassword) => set({ exportPassword, dirty: true }),
+  protection: null,
+  setProtection: (protection) => set({ protection, dirty: true }),
+  docProps: null,
+  setDocProps: (docProps) => set({ docProps, dirty: true }),
+  clean: NO_CLEANING,
+  setClean: (clean) => set({ clean, dirty: true }),
+  privacyDialog: null,
+  setPrivacyDialog: (privacyDialog) => set({ privacyDialog }),
   pageElementsOpen: false,
   setPageElementsOpen: (pageElementsOpen) => set({ pageElementsOpen }),
   editingTextId: null,
@@ -217,7 +235,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     Object.values(get().assets).forEach((a) => URL.revokeObjectURL(a.url));
     set((s) => ({
       doc, pages, bytes, docKey: s.docKey + 1, loading: null, error: null,
-      objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false, lastExport: null, exportState: idleExport, exportPassword: null,
+      objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false, lastExport: null, exportState: idleExport, protection: null, docProps: null, clean: NO_CLEANING,
       selectedId: null, extraSelected: [], formValues: {}, editingTextId: null, editingCell: null, draftText: null, textSel: null, tool: 'select', currentPage: 0, scrollRequest: null,
       search: { ...s.search, hits: [], index: -1 },
     }));
@@ -226,7 +244,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     Object.values(get().assets).forEach((a) => URL.revokeObjectURL(a.url));
     set({
       doc: null, pages: [], bytes: null, objects: [], history: emptyHistory(), assets: {}, sources: {}, dirty: false,
-      lastExport: null, selectedId: null, extraSelected: [], formValues: {}, editingTextId: null, editingCell: null, textSel: null, tool: 'select',
+      lastExport: null, protection: null, docProps: null, clean: NO_CLEANING, selectedId: null, extraSelected: [], formValues: {}, editingTextId: null, editingCell: null, textSel: null, tool: 'select',
     });
   },
   setLoading: (loading) => set({ loading }),

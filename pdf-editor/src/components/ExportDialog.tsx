@@ -42,6 +42,16 @@ export function ExportDialog() {
                 The original text you replaced was deleted from the file ({st.removedGlyphs} characters), not just covered.
               </p>
             )}
+            {!!st.notes?.length && (
+              <div className="mt-2 text-sm text-slate-600">
+                <p className="font-medium text-slate-700">Changed in the file:</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  {st.notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {!!st.flattenedPages?.length && (
               <p className="mt-2 text-sm text-slate-600">
                 Securely redacted (converted to an image): page {st.flattenedPages.map((p) => p + 1).join(', ')}.

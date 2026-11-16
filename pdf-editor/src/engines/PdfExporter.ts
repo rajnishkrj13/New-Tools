@@ -46,7 +46,7 @@ import {
 import type { RawTextItem } from '../types/text';
 import fontkit from '@pdf-lib/fontkit';
 import { isPageEdit } from '../types/objects';
-import type { EditorObject, FormValues, ImageAsset, ImageCutObject, TextEditObject, TextStyle } from '../types/objects';
+import type { EditorObject, FormValues, ImageAsset, ImageCutObject, MaskObject, TextEditObject, TextStyle } from '../types/objects';
 import { markShapes } from './TextHighlighter';
 import { removeImageOps } from './PdfImages';
 import { layoutTable } from './TableLayout';
@@ -56,6 +56,7 @@ import { FALLBACK_FONT_ID, getFont, hasBundledFont, loadBundledFont } from './Fo
 import { layoutTextEdit, layoutTextObject, runStyle, type TextRun } from './TextEditLayout';
 import { removeGlyphsFromContent, type TextOpInfo } from './TextRemover';
 import { getShaper, isRightToLeft, needsShaping, type Shaper } from './TextShaper';
+import { annotationRefs, anyCleaning, applyProperties, dropFieldsOfRemovedPages, dropStructureTree, pruneUnreachable, redirectReferences, sanitizeOriginal, type CleanOptions, type DocProps } from './PdfPrivacy';
 import { measureText } from '../utils/fontUtils';
 import { validateObjects } from '../utils/validationUtils';
 
@@ -83,6 +84,8 @@ export interface ExportInput {
   sources?: Record<string, Uint8Array>;
   /** Values for the form fields the PDF already has, by field name. */
   formValues?: FormValues;
+  /** Document properties to set, and the hidden data to remove from the original document. */
+  privacy?: { props?: DocProps | null; clean?: CleanOptions };
   /** Text recognised on scanned pages (by page index), written as a hidden searchable layer. */
   ocrText?: Record<number, RawTextItem[]>;
   /**
@@ -110,6 +113,8 @@ export interface ExportResult {
   structureChanged: boolean;
   /** Recognised (OCR) words written as a hidden, searchable text layer. */
   ocrWords: number;
+  /** What was removed from or changed in the file's hidden data. */
+  notes: string[];
   warnings: string[];
 }
 
@@ -157,7 +162,11 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     throw new ExportError(`The original PDF could not be parsed for writing: ${e?.message ?? e}`);
   }
   doc.registerFontkit(fontkit);
-  const structureChanged = await applyPageStructure(doc, input);
+  const notes: string[] = [];
+  const structureChanged = await applyPageStructure(doc, input, notes);
+  if (anyCleaning(input.privacy?.clean)) notes.push(...sanitizeOriginal(doc, input.privacy!.clean!).map((f) => f.label));
+  /** Things you added that overlapped a redaction and were left out instead of being drawn. */
+  let droppedByRedaction = 0;
 
   // ---- fonts ---------------------------------------------------------------------------
   type FontStyle = Pick<TextStyle, 'fontFamily' | 'bold' | 'italic'>;
@@ -318,13 +327,18 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     let toPdf: Matrix = invert(info.viewTransform);
 
     // Secure redaction: replace the page by an image of itself with the boxes burned in.
-    const redactions = list.filter((o) => o.type === 'redact') as Extract<EditorObject, { type: 'redact' }>[];
+    const redactions = list.filter((o): o is MaskObject => o.type === 'redact');
     if (redactions.length) {
       if (!input.rasterizePage) throw new ExportError('Secure redaction needs the page renderer, which is not available.');
       const png = await input.rasterizePage(pageIndex, redactions);
       const image = await doc.embedPng(png);
+      const replaced = new Set(annotationRefs(doc, page.node));
+      const oldPageRef = page.ref;
       doc.removePage(pageIndex);
+      dropFieldsOfRemovedPages(doc, replaced);
       page = doc.insertPage(pageIndex, [info.width, info.height]);
+      redirectReferences(doc, oldPageRef, page.ref);
+      if (dropStructureTree(doc)) notes.push('Accessibility tags (they could repeat redacted text)');
       page.drawImage(image, { x: 0, y: 0, width: info.width, height: info.height });
       toPdf = invert(computeViewTransform([0, 0, info.width, info.height], 0).transform);
       flattenedPages.push(pageIndex);
@@ -503,7 +517,35 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     // Edited original text first (it belongs to the page content), then everything else in z-order.
     const ordered = [...list.filter(isPageEdit), ...list.filter((o) => !isPageEdit(o) && o.type !== 'redact')];
 
+    // Redaction boxes also cover and remove what was added on top of them: nothing that overlaps a
+    // redaction may be drawn, or its text would still be in the file under the black box.
+    const boxes: Rect[] = redactions.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }));
+    const touches = (r: Rect) => boxes.some((b) => r.x < b.x + b.width && r.x + r.width > b.x && r.y < b.y + b.height && r.y + r.height > b.y);
+    const spanOf = (m: Matrix, x: number, y: number, w: number, h: number): Rect => {
+      const pts = [[x, y], [x + w, y], [x, y + h], [x + w, y + h]].map(([px, py]) => applyMatrix(m, px, py));
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+    };
+    const runTouches = (m: Matrix, run: TextRun) => touches(spanOf(m, run.x, run.baseline - run.fontSize * 0.95, run.width, run.fontSize * 1.3));
+    const skip = new Set<string>();
+    if (boxes.length) {
+      for (const o of ordered) {
+        const turned = mul(translate((o as { x?: number }).x ?? 0, (o as { y?: number }).y ?? 0), rotateDeg((o as { rotation?: number }).rotation ?? 0));
+        const area =
+          o.type === 'image' ? spanOf(turned, 0, 0, o.width, o.height)
+          : o.type === 'table' ? spanOf(turned, 0, 0, layoutTable(o).width, layoutTable(o).height)
+          : o.type === 'link' || o.type === 'note' || o.type === 'field' ? { x: o.x, y: o.y, width: o.width, height: o.height }
+          : null;
+        if (area && touches(area)) skip.add(o.id);
+      }
+    }
+
     for (const o of ordered) {
+      if (skip.has(o.id)) {
+        droppedByRedaction++;
+        continue;
+      }
       switch (o.type) {
         case 'textedit': {
           const layout = layoutTextEdit(o);
@@ -516,7 +558,12 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
             if (!o.ocr) coveredPages.add(pageIndex);
             inView(boxFrame(m), () => page.drawRectangle({ x: 0, y: 0, width: m.width, height: m.height, color: mask }));
           }
-          if (pieces.every(Boolean)) layout.runs.forEach((run, k) => drawRun([1, 0, 0, 1, 0, 0], run, pieces[k]!, o.style));
+          if (pieces.every(Boolean)) {
+            layout.runs.forEach((run, k) => {
+              if (boxes.length && runTouches([1, 0, 0, 1, 0, 0], run)) droppedByRedaction++;
+              else drawRun([1, 0, 0, 1, 0, 0], run, pieces[k]!, o.style);
+            });
+          }
           break;
         }
         case 'text': {
@@ -533,7 +580,13 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
           }
           // Runs of a formatted text box can be bold or italic on their own.
           const pieces = await Promise.all(layout.lines.map((l) => piecesFor(l.text, runStyle(o, l), pageIndex)));
-          if (pieces.every(Boolean)) layout.lines.forEach((line, k) => line.text.trim() && drawRun(base, line, pieces[k]!, runStyle(o, line)));
+          if (pieces.every(Boolean)) {
+            layout.lines.forEach((line, k) => {
+              if (!line.text.trim()) return;
+              if (boxes.length && runTouches(base, line)) droppedByRedaction++;
+              else drawRun(base, line, pieces[k]!, runStyle(o, line));
+            });
+          }
           break;
         }
         case 'link': {
@@ -715,9 +768,13 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
       written++;
     }
 
+    // The redaction boxes themselves go on top of everything, in solid black.
+    for (const r of redactions) inView(boxFrame(r), () => page.drawRectangle({ x: 0, y: 0, width: r.width, height: r.height, color: rgb(0, 0, 0) }));
+
     // Text recognised on a scanned page (OCR) becomes an invisible text layer, so the
     // exported PDF can be searched and copied from. Words the user edited are left out.
-    const words = redactions.length ? [] : input.ocrText?.[pageIndex] ?? [];
+    // Words that lie under a redaction are not written (that is what is being hidden).
+    const words = (input.ocrText?.[pageIndex] ?? []).filter((w) => !touches({ x: w.x, y: w.baseline - w.fontSize, width: w.width, height: w.fontSize * 1.3 }));
     if (words.length) {
       const masks = edits.flatMap((e) => layoutTextEdit(e).masks);
       const style: TextStyle = { fontFamily: 'Helvetica', fontSize: 10, bold: false, italic: false, underline: false, color: '#000000', align: 'left', opacity: 1 };
@@ -742,6 +799,14 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
   }
 
   if (usedFallback) warnings.push('Characters missing from the chosen font were drawn with the bundled Noto Sans font.');
+  if (droppedByRedaction) {
+    warnings.push(
+      droppedByRedaction + ' line' + (droppedByRedaction > 1 ? 's' : '') + ' of text, pictures or other items that you added overlapped a redaction and were left out, so that nothing under the black boxes stays in the file.',
+    );
+  }
+  if (flattenedPages.length && !anyCleaning(input.privacy?.clean)) {
+    warnings.push('The file still carries its properties, bookmarks, comments and attachments, which may mention what you redacted. Use File > Remove hidden data to clear them.');
+  }
   if (unshaped) {
     warnings.push(
       'Some text is in a script that needs letter joining (for example Hindi or Arabic) but could not be shaped, ' +
@@ -784,6 +849,11 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     if (failed.length) warnings.push(`These form fields could not be filled: ${failed.join(', ')}.`);
   }
 
+  if (input.privacy?.props) notes.push(...applyProperties(doc, input.privacy.props));
+  // Remove every object nothing points to any more (deleted and flattened pages, removed data),
+  // so that it is not left inside the saved file where only the viewers cannot see it.
+  if (flattenedPages.length > 0 || structureChanged || input.privacy?.props || anyCleaning(input.privacy?.clean)) pruneUnreachable(doc);
+
   onProgress?.(pageIndexes.length, pageIndexes.length, 'Saving PDF');
   let bytes: Uint8Array;
   try {
@@ -807,7 +877,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
     throw new ExportError(`The exported PDF failed validation (${e?.message ?? e}). Nothing was downloaded.`);
   }
 
-  return { bytes, pagesModified: pageIndexes.length, objectsWritten: written, flattenedPages, removedGlyphs, removedImages, shapedRuns, structureChanged, ocrWords, warnings };
+  return { bytes, pagesModified: pageIndexes.length, objectsWritten: written, flattenedPages, removedGlyphs, removedImages, shapedRuns, structureChanged, ocrWords, notes, warnings };
 }
 
 /**
@@ -815,7 +885,7 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
  * pages, pages taken from other PDFs and rotation. The document is changed in place, so
  * bookmarks, form fields and metadata of the original survive. Returns true if anything changed.
  */
-async function applyPageStructure(doc: PDFDocument, input: ExportInput): Promise<boolean> {
+async function applyPageStructure(doc: PDFDocument, input: ExportInput, notes: string[]): Promise<boolean> {
   const originals = doc.getPages();
   const slots = input.pages;
   for (const p of slots) {
@@ -878,13 +948,18 @@ async function applyPageStructure(doc: PDFDocument, input: ExportInput): Promise
       }
     }
     // Deleted pages: remove the page object and its content so their text is not left in the file.
+    const goneAnnotations = new Set<string>();
     originals.forEach((pg, i) => {
       if (kept.has(i)) return;
+      annotationRefs(doc, pg.node).forEach((t) => goneAnnotations.add(t));
       const contents = pg.node.get(PDFName.of('Contents'));
       const refs = contents instanceof PDFArray ? contents.asArray() : [contents];
       for (const r of refs) if (r instanceof PDFRef) doc.context.delete(r);
       doc.context.delete(pg.ref);
     });
+    dropFieldsOfRemovedPages(doc, goneAnnotations);
+    // The accessibility tags of a tagged PDF repeat the text of its pages as alternative text.
+    if (kept.size < originals.length && dropStructureTree(doc)) notes.push('Accessibility tags (they could repeat the text of deleted pages)');
   }
   let rotated = false;
   slots.forEach((p, i) => {

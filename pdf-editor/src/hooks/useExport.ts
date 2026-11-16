@@ -40,6 +40,7 @@ export async function buildPdf(showDialog: boolean, options: { compress?: Compre
       ocrText,
       assets: fresh.assets,
       formValues: fresh.formValues,
+      privacy: { props: fresh.docProps, clean: fresh.clean },
       sources: Object.fromEntries(Object.entries(fresh.sources).map(([id, s]) => [id, s.bytes])),
       rasterizePage: (pageIndex, redactions) => rasterizePage(chosen[pageIndex], redactions),
       analyzeText: (pageIndex) => analyzeTextOps(chosen[pageIndex]),
@@ -60,15 +61,16 @@ export async function buildPdf(showDialog: boolean, options: { compress?: Compre
             : 'This PDF has no photos that can be made smaller; the file size is unchanged.',
       );
     }
-    if (fresh.exportPassword) {
+    if (fresh.protection) {
       getState().setExportState({ label: 'Adding the password…' });
-      result.bytes = await lockPdf(result.bytes, fresh.exportPassword);
-      result.warnings.push('This file is protected: it only opens with the password you set.');
+      result.bytes = await lockPdf(result.bytes, fresh.protection);
+      const p = fresh.protection;
+      result.notes.push(p.userPassword ? 'The file is protected: it only opens with the password you set.' : 'The file opens for everyone, with the restrictions you chose.');
     }
     // An extract or a compressed copy is handed to its caller; it does not replace the normal export.
     if (options.pages || options.compress) {
       getState().setExportState({ status: 'idle', dialog: false });
-      if (result.warnings.length) getState().toast(result.warnings[result.warnings.length - (fresh.exportPassword ? 2 : 1)] ?? result.warnings[0], 'info');
+      if (result.warnings.length) getState().toast(result.warnings[result.warnings.length - (fresh.protection ? 2 : 1)] ?? result.warnings[0], 'info');
       return result.bytes;
     }
     getState().setLastExport({ bytes: result.bytes, fileName: editedName(fresh.doc!.fileName) });
@@ -76,7 +78,7 @@ export async function buildPdf(showDialog: boolean, options: { compress?: Compre
     if (getState().objects !== fresh.objects) useEditorStore.setState({ dirty: true });
     getState().setExportState({
       status: 'done', progress: 1, label: 'Done', warnings: result.warnings,
-      pagesModified: result.pagesModified, objectsWritten: result.objectsWritten, flattenedPages: result.flattenedPages, removedGlyphs: result.removedGlyphs, structureChanged: result.structureChanged,
+      pagesModified: result.pagesModified, objectsWritten: result.objectsWritten, flattenedPages: result.flattenedPages, removedGlyphs: result.removedGlyphs, structureChanged: result.structureChanged, notes: result.notes,
     });
     return result.bytes;
   } catch (e: any) {

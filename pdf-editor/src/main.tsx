@@ -13,6 +13,8 @@ import * as textEdit from './store/textEditActions';
 import * as pageTools from './store/pageActions';
 import * as autoSave from './hooks/useAutoSave';
 import * as fileTools from './hooks/useFileTools';
+import * as privacyTools from './engines/PdfPrivacy';
+import * as searchTools from './store/searchActions';
 import * as tabTools from './store/tabActions';
 import { initAutoSave } from './hooks/useAutoSave';
 
@@ -36,5 +38,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 // Development-only handle for automated tests and debugging. Not part of production builds.
 if (import.meta.env.DEV) {
-  (window as any).__pdfEditor = { store: useEditorStore, openPdfBytes, exportPdf, rasterizePage, getCachedTextModel, textEdit, pageTools, autoSave, fileTools, tabTools };
+  (window as any).__pdfEditor = { store: useEditorStore, openPdfBytes, exportPdf, rasterizePage, getCachedTextModel, textEdit, pageTools, autoSave, fileTools, tabTools, privacyTools, searchTools };
 }

@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, FileImage, FileOutput, FileText, Images, Lock, LockOpen, Menu, Minimize2, ScanText } from 'lucide-react';
+import { ChevronDown, EyeOff, FileImage, FileOutput, FileText, Images, Lock, Menu, Minimize2, ScanText, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { useEditorStore } from '../store/documentStore';
-import { createFromImages, downloadSmaller, exportImages, exportText, extractPages, recognizeText, setPassword } from '../hooks/useFileTools';
+import { createFromImages, downloadSmaller, exportImages, exportText, extractPages, recognizeText } from '../hooks/useFileTools';
+import { getState } from '../store/documentStore';
+import { openSearch } from '../store/searchActions';
 
 /** Drop-down with the tools that work on the whole file. */
 export function FileMenu() {
   const [open, setOpen] = useState(false);
-  const locked = useEditorStore((s) => !!s.exportPassword);
+  const locked = useEditorStore((s) => !!s.protection);
+  const edited = useEditorStore((s) => !!s.docProps || Object.values(s.clean).some(Boolean));
   const ref = useRef<HTMLDivElement>(null);
   const images = useRef<HTMLInputElement>(null);
 
@@ -51,7 +54,8 @@ export function FileMenu() {
         className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
         <Menu size={16} /> File <ChevronDown size={14} />
-        {locked && <Lock size={13} className="text-amber-600" aria-label="Downloads are password-protected" />}
+        {locked && <Lock size={13} className="text-amber-600" aria-label="Downloads are protected" />}
+        {edited && <ShieldCheck size={13} className="text-emerald-600" aria-label="Privacy settings are on" />}
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-11 z-50 max-h-[78vh] w-[310px] overflow-y-auto rounded-xl bg-white p-1.5 shadow-float">
@@ -67,10 +71,11 @@ export function FileMenu() {
           {group('Scans')}
           {item(<ScanText size={16} />, 'Recognise text on this page (OCR)', 'Makes a scanned page searchable and editable', () => recognizeText('page'))}
           {item(<ScanText size={16} />, 'Recognise text on all scanned pages', 'Every page that has no text of its own', () => recognizeText('all'))}
-          {group('Protection')}
-          {locked
-            ? item(<LockOpen size={16} />, 'Remove the password', 'Downloads will open without a password again', setPassword)
-            : item(<Lock size={16} />, 'Protect with a password…', 'Downloads will only open with a password', setPassword)}
+          {group('Privacy')}
+          {item(<ScanSearch size={16} />, 'Find and redact…', 'Black out every email, phone number, ID number or word', openSearch)}
+          {item(<SlidersHorizontal size={16} />, edited ? 'Document properties… (changed)' : 'Document properties…', 'Title, author and the program names in the file', () => getState().setPrivacyDialog('properties'))}
+          {item(<EyeOff size={16} />, 'Remove hidden data…', 'Comments, attachments, scripts, bookmarks and more', () => getState().setPrivacyDialog('clean'))}
+          {item(<Lock size={16} />, locked ? 'Change or remove protection…' : 'Protect with a password…', 'A password to open, and limits on printing, copying and editing', () => getState().setPrivacyDialog('protect'))}
           {group('New')}
           {item(<Images size={16} />, 'New PDF from pictures…', 'One page per PNG, JPG or WebP picture, in a new tab', () => images.current?.click())}
         </div>

@@ -145,11 +145,63 @@ export async function unlockPdf(bytes: Uint8Array, password: string): Promise<Ui
   return doc.save();
 }
 
-/** Protects a PDF so that it only opens with the password. */
-export async function lockPdf(bytes: Uint8Array, password: string): Promise<Uint8Array> {
+export interface Permissions {
+  printing: 'none' | 'low' | 'high';
+  copying: boolean;
+  modifying: boolean;
+  annotating: boolean;
+  fillingForms: boolean;
+  assembling: boolean;
+  /** Screen readers may read the text (keep this on unless there is a reason). */
+  accessibility: boolean;
+}
+
+export interface Protection {
+  /** Needed to open the file. May be empty when the file should open for everyone but be restricted. */
+  userPassword: string;
+  /** Lifts the restrictions. Must differ from the open password when anything is restricted. */
+  ownerPassword: string;
+  permissions: Permissions;
+}
+
+export const FULL_PERMISSIONS: Permissions = { printing: 'high', copying: true, modifying: true, annotating: true, fillingForms: true, assembling: true, accessibility: true };
+export const restricts = (p: Permissions) => Object.entries(p).some(([k, v]) => (k === 'printing' ? v !== 'high' : v === false));
+
+/** What is wrong with these settings, or null when they can be used. */
+export function protectionProblem(p: Protection): string | null {
+  if (!p.userPassword && !p.ownerPassword) return 'Enter a password to open the file, or a password to change the settings.';
+  if ((p.userPassword && p.userPassword.length < 4) || (p.ownerPassword && p.ownerPassword.length < 4)) return 'Use at least 4 characters for a password.';
+  if (restricts(p.permissions) && (!p.ownerPassword || p.ownerPassword === p.userPassword)) {
+    return 'To restrict printing, copying or editing, set a second, different password for changing these settings. Otherwise anyone who can open the file could simply lift the restrictions.';
+  }
+  return null;
+}
+
+/**
+ * Protects a PDF with AES-256. Given a plain password, the file only opens with it and
+ * nothing is restricted. Given Protection settings, the open password and the permissions
+ * are set separately.
+ */
+export async function lockPdf(bytes: Uint8Array, how: string | Protection): Promise<Uint8Array> {
   const lib = await import('@cantoo/pdf-lib');
+  const p: Protection = typeof how === 'string' ? { userPassword: how, ownerPassword: how, permissions: FULL_PERMISSIONS } : how;
+  const problem = protectionProblem(p);
+  if (problem) throw new Error(problem);
   const doc = await lib.PDFDocument.load(bytes, { updateMetadata: false });
-  doc.encrypt({ userPassword: password, ownerPassword: password, permissions: { printing: 'highResolution', modifying: true, copying: true, annotating: true, fillingForms: true } });
+  const perm = p.permissions;
+  doc.encrypt({
+    userPassword: p.userPassword,
+    ownerPassword: p.ownerPassword || p.userPassword,
+    permissions: {
+      printing: perm.printing === 'none' ? false : perm.printing === 'low' ? 'lowResolution' : 'highResolution',
+      copying: perm.copying,
+      modifying: perm.modifying,
+      annotating: perm.annotating,
+      fillingForms: perm.fillingForms,
+      documentAssembly: perm.assembling,
+      contentAccessibility: perm.accessibility,
+    },
+  });
   return doc.save();
 }
 

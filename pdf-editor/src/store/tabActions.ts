@@ -5,6 +5,8 @@ import { clearTextCache } from '../engines/PdfTextExtractor';
 import { newId } from '../utils/imageUtils';
 import { getState, useEditorStore, type Snapshot } from './documentStore';
 import { emptyHistory, type History } from './historyStore';
+import type { CleanOptions, DocProps } from '../engines/PdfPrivacy';
+import type { Protection } from '../engines/PdfTools';
 
 /**
  * Several documents, as tabs. The editor works on one document at a time; the others are
@@ -23,7 +25,9 @@ export interface ParkedDocument {
   formValues: FormValues;
   dirty: boolean;
   lastExport: { bytes: Uint8Array; fileName: string } | null;
-  exportPassword: string | null;
+  protection: Protection | null;
+  docProps: DocProps | null;
+  clean: CleanOptions;
   zoom: number;
   currentPage: number;
 }
@@ -35,8 +39,8 @@ export const onTabClosed = (fn: (id: string) => void) => closeListeners.push(fn)
 export const isParked = (id: string) => parked.has(id);
 
 /** Puts a document straight into a background tab (used when restoring a saved session). */
-export function parkDocument(id: string, data: Omit<ParkedDocument, 'history' | 'lastExport' | 'exportPassword' | 'zoom' | 'currentPage'>) {
-  parked.set(id, { ...data, history: emptyHistory(), lastExport: null, exportPassword: null, zoom: 1, currentPage: 0 });
+export function parkDocument(id: string, data: Omit<ParkedDocument, 'history' | 'lastExport' | 'protection' | 'zoom' | 'currentPage'>) {
+  parked.set(id, { ...data, history: emptyHistory(), lastExport: null, protection: null, zoom: 1, currentPage: 0 });
 }
 
 /** Moves the document that is open now into the background. */
@@ -45,7 +49,7 @@ function parkCurrent() {
   if (!s.doc || !s.bytes || !s.activeTab) return;
   parked.set(s.activeTab, {
     doc: s.doc, pages: s.pages, bytes: s.bytes, objects: s.objects, history: s.history, assets: s.assets, sources: s.sources,
-    formValues: s.formValues, dirty: s.dirty, lastExport: s.lastExport, exportPassword: s.exportPassword, zoom: s.zoom, currentPage: s.currentPage,
+    formValues: s.formValues, dirty: s.dirty, lastExport: s.lastExport, protection: s.protection, docProps: s.docProps, clean: s.clean, zoom: s.zoom, currentPage: s.currentPage,
   });
   // Its pictures stay alive with it: the next document must not release them.
   useEditorStore.setState({ assets: {} });

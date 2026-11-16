@@ -5,6 +5,7 @@ import { invalidateLayouts } from '../engines/TextEditLayout';
 import { getState, useEditorStore } from '../store/documentStore';
 import { onTabClosed, parkDocument, switchTab } from '../store/tabActions';
 import { idbClear, idbDeleteRange, idbGet, idbPut } from '../utils/sessionStore';
+import { NO_CLEANING, type CleanOptions, type DocProps } from '../engines/PdfPrivacy';
 
 /**
  * Auto-save: every open document and what was done to it are kept in this browser's
@@ -27,6 +28,9 @@ export interface SavedSession {
   fonts: { id: string; name: string }[];
   /** Values typed into the PDF's own form fields. */
   formValues?: FormValues;
+  /** Document properties and hidden-data choices (never passwords). */
+  docProps?: DocProps | null;
+  clean?: CleanOptions;
 }
 
 interface SavedIndex {
@@ -111,6 +115,8 @@ async function writeState() {
     sources: Object.entries(s.sources).map(([id, src]) => ({ id, name: src.name })),
     fonts: fonts.map((f) => ({ id: f.id, name: f.custom!.name })),
     formValues: s.formValues,
+    docProps: s.docProps,
+    clean: s.clean,
   };
   // Written last: a session is only valid once everything it refers to is stored.
   await idbPut(key(tab, 'meta'), session);
@@ -180,7 +186,7 @@ export function initAutoSave() {
     if (s.bytes !== prev.bytes && s.autoSave.status !== 'idle') s.setAutoSave({ status: 'idle', at: null });
     if (
       s.bytes !== prev.bytes || s.objects !== prev.objects || s.pages !== prev.pages || s.sources !== prev.sources ||
-      s.formValues !== prev.formValues || s.fontVersion !== prev.fontVersion || s.tabs !== prev.tabs
+      s.formValues !== prev.formValues || s.docProps !== prev.docProps || s.clean !== prev.clean || s.fontVersion !== prev.fontVersion || s.tabs !== prev.tabs
     ) {
       schedule();
     }
@@ -269,7 +275,7 @@ export async function resumeSavedSessions(): Promise<boolean> {
       const tabId = id === LEGACY ? `doc-${Date.now().toString(36)}` : id;
       parkDocument(tabId, {
         doc: { fileName: meta.fileName, fileSize: bytes.length, numPages: pages.length, exportable: true },
-        pages, bytes, objects, assets, sources, formValues: meta.formValues ?? {},
+        pages, bytes, objects, assets, sources, formValues: meta.formValues ?? {}, docProps: meta.docProps ?? null, clean: meta.clean ?? NO_CLEANING,
         dirty: objects.length > 0 || Object.keys(meta.formValues ?? {}).length > 0,
       });
       records.set(tabId, { base: id === LEGACY ? null : bytes, blobs: id === LEGACY ? new Set() : blobs });

@@ -81,26 +81,6 @@ export async function downloadSmaller(level: keyof typeof COMPRESS_LEVELS) {
   if (bytes) downloadBytes(bytes, `${baseName()}-small.pdf`);
 }
 
-export async function setPassword() {
-  const s = getState();
-  if (s.exportPassword) {
-    s.setExportPassword(null);
-    return s.toast('Downloads of this document are no longer password-protected.', 'info');
-  }
-  const password = await askText({
-    title: 'Protect with a password',
-    message: 'Downloads of this document will only open with this password. It is used on this device only and is not saved: if you forget it, the file cannot be opened.',
-    label: 'Password',
-    password: true,
-    confirm: true,
-    okLabel: 'Set password',
-    validate: (v) => (v.length < 4 ? 'Use at least 4 characters.' : null),
-  });
-  if (password === null) return;
-  getState().setExportPassword(password);
-  getState().toast('Password set. It applies to every download of this document until you remove it.', 'success');
-}
-
 /** Builds a new PDF with one page per picture and opens it in its own tab. */
 export async function createFromImages(files: File[]) {
   if (!files.length) return;

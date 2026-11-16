@@ -5,6 +5,7 @@ import { PdfViewer } from './components/PdfViewer';
 import { SearchPanel } from './components/SearchPanel';
 import { TabBar } from './components/TabBar';
 import { PromptDialog } from './components/PromptDialog';
+import { PrivacyDialogs } from './components/PrivacyDialogs';
 import { PageElementsDialog } from './components/PageElementsDialog';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
@@ -92,6 +93,7 @@ export default function App() {
       {hasDoc ? <Editor /> : <UploadDropzone />}
       <SignatureEditor />
       <PromptDialog />
+      <PrivacyDialogs />
       <PageElementsDialog />
       <ExportDialog />
       <Toasts />

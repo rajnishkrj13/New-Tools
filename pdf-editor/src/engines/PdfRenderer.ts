@@ -4,6 +4,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { DocumentInfo, PageInfo, Rect } from '../types/pdf';
 import { applyMatrix, makePageInfo } from './CoordinateMapper';
 import { analyzeOperatorList, type TextOpInfo } from './TextRemover';
+import type { DocProps } from './PdfPrivacy';
 import { analyzeImageOps, type PageImage } from './PdfImages';
 import type { ImageAsset } from '../types/objects';
 import { canvasToAsset } from '../utils/imageUtils';
@@ -411,4 +412,23 @@ export async function extractPdfText(bytes: Uint8Array): Promise<string[]> {
   } finally {
     await doc.destroy().catch(() => undefined);
   }
+}
+
+/** Properties of the open document, as the file states them (main document only). */
+export async function readProperties(): Promise<{ props: DocProps; created: string; modified: string }> {
+  const meta: any = await docs.get('main')?.getMetadata().catch(() => null);
+  const info = meta?.info ?? {};
+  const text = (k: string) => (typeof info[k] === 'string' ? info[k] : '');
+  // PDF dates look like D:20260131093000+05'30'
+  const date = (raw: string) => {
+    const m = /^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?/.exec(raw);
+    if (!m) return '';
+    const d = new Date(Number(m[1]), Number(m[2] ?? 1) - 1, Number(m[3] ?? 1), Number(m[4] ?? 0), Number(m[5] ?? 0));
+    return d.toLocaleString([], { dateStyle: 'medium', timeStyle: m[4] ? 'short' : undefined });
+  };
+  return {
+    props: { title: text('Title'), author: text('Author'), subject: text('Subject'), keywords: text('Keywords'), creator: text('Creator'), producer: text('Producer') },
+    created: date(text('CreationDate')),
+    modified: date(text('ModDate')),
+  };
 }

@@ -29,7 +29,9 @@ export interface SearchHit {
   /** Where the match is, so it can be replaced. */
   target:
     | { kind: 'page'; paragraphId: string; slot: number; start: number; end: number }
-    | { kind: 'object'; id: string; start: number; end: number };
+    | { kind: 'object'; id: string; start: number; end: number }
+    /** A table or a comment: found, but handled as a whole. */
+    | { kind: 'whole'; id: string };
 }
 
 export const SHAPE_TOOLS: Tool[] = ['rect', 'ellipse', 'line', 'arrow'];
@@ -63,6 +65,8 @@ export interface ExportState {
   flattenedPages?: number[];
   removedGlyphs?: number;
   structureChanged?: boolean;
+  /** What was removed from or changed in the file's hidden data. */
+  notes?: string[];
   /** Show the result dialog (Apply Changes) or stay silent (direct download). */
   dialog: boolean;
 }
