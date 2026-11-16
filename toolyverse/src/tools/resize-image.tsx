@@ -15,7 +15,8 @@ export default function ResizeImage(props: ToolProps) {
   const [h, setH] = useState('');
   const [dpi, setDpi] = useState('300');
   const [keep, setKeep] = useState(true);
-  const [result, setResult] = useState<Blob | null>(null);
+  // The size the picture was made at travels with it, so an older picture is never offered under a newer size.
+  const [made, setMade] = useState<{ blob: Blob; w: number; h: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function ResizeImage(props: ToolProps) {
     return pw > 0 && ph > 0 ? { w: pw, h: ph } : null;
   })();
   const tooBig = target && target.w * target.h > 50e6;
-  const shown = target && !tooBig ? result : null;
+  const shown = target && !tooBig && made && made.w === target.w && made.h === target.h ? made.blob : null;
 
   useEffect(() => {
     if (!file || !target || tooBig) return;
@@ -54,7 +55,7 @@ export default function ResizeImage(props: ToolProps) {
         const type = outTypeFor(file);
         const blob = await encode(drawCanvas(bitmap, target.w, target.h, needsBackground(type) ? '#ffffff' : undefined), type, 0.92);
         bitmap.close();
-        if (!cancelled) setResult(blob);
+        if (!cancelled) setMade({ blob, w: target.w, h: target.h });
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       }
@@ -145,7 +146,7 @@ export default function ResizeImage(props: ToolProps) {
             <button type="button" className="btn" disabled={!shown} onClick={() => shown && download(shown, `${baseName(file.name)}-${target?.w}x${target?.h}.${EXT[outTypeFor(file)]}`)}>
               Download
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => (setFile(null), setResult(null), setSize(null))}>
+            <button type="button" className="btn btn-ghost" onClick={() => (setFile(null), setMade(null), setSize(null))}>
               Another image
             </button>
           </div>

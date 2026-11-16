@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Built copies of the PDF editor and the pdf.js worker (scripts/copy-assets.mjs), not source.
+    "public/pdf-editor/**",
+    "public/pdfjs/**",
+    ".data/**",
   ]),
 ]);
 
