@@ -19,7 +19,7 @@ import * as tabTools from './store/tabActions';
 import { initAutoSave } from './hooks/useAutoSave';
 import { loadProfile } from './store/profileActions';
 import * as profileTools from './store/profileActions';
-import { loadEmbedConfig } from './utils/embed';
+import { FOCUS, feature, loadEmbedConfig } from './utils/embed';
 
 installBundledFonts(() => {
   invalidateLayouts();
@@ -32,6 +32,24 @@ useEditorStore.subscribe((s, prev) => {
 });
 // {page} / {pages} / {file} in headers and footers follow the document.
 useEditorStore.subscribe((s) => setFieldContext(s.pages.length, s.doc?.fileName ?? ''));
+
+// A Toolyverse page for one job (sign, OCR, redact…) opens that tool once the first document loads.
+if (FOCUS) {
+  const stop = useEditorStore.subscribe((s, prev) => {
+    if (!s.doc || prev.doc) return;
+    stop();
+    // After the page has drawn, so dialogs open over the document.
+    setTimeout(() => {
+      const st = useEditorStore.getState();
+      if (FOCUS === 'sign' && feature('sign')) st.setSignatureOpen(true, 'signature');
+      else if (FOCUS === 'addtext') st.setTool('addtext');
+      else if (FOCUS === 'edittext' && feature('editText')) st.setTool('edittext');
+      else if (FOCUS === 'redact' && feature('redact')) st.setTool('redact');
+      else if (FOCUS === 'stamp') st.setPageElementsOpen(true);
+      else if (FOCUS === 'ocr' && feature('ocr')) void fileTools.recognizeText('all');
+    }, 300);
+  });
+}
 
 // Inside Toolyverse the site's settings (features, size limits, account) are read first.
 loadEmbedConfig().finally(() => {

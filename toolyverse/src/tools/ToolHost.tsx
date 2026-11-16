@@ -38,7 +38,7 @@ const TOOLS: Record<string, ComponentType<ToolProps>> = {
   'word-counter': dynamic(() => import('./word-counter'), { loading }),
 };
 
-export function ToolHost({ slug, ...props }: ToolProps & { slug: string }) {
+export function ToolHost({ slug, focus, ...props }: ToolProps & { slug: string; focus?: string }) {
   const Tool = TOOLS[slug];
-  return Tool ? <Tool {...props} /> : null;
+  return Tool ? <Tool {...props} focus={focus} /> : null;
 }

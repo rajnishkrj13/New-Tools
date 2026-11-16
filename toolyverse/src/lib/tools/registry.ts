@@ -1,3 +1,5 @@
+import { EDITOR_PAGES } from './editor-pages';
+
 /**
  * Every tool on Toolyverse: its address, what search engines see, the help text on its page
  * and the features an administrator can switch off. The code that does the work lives in
@@ -48,7 +50,35 @@ export interface Tool {
   limits?: { publicMb: number; memberMb: number };
   related: string[];
   keywords: string[];
+  /** Long-form help below the how-to: what search engines and careful readers both want. */
+  sections?: Section[];
+  /** Feature list for structured data (WebApplication.featureList). */
+  featureList?: string[];
+  /** This page runs another tool's code (landing pages that open the PDF editor). */
+  opens?: string;
+  /** For the PDF editor: which tool to open first once a file is loaded. */
+  focus?: 'sign' | 'addtext' | 'edittext' | 'redact' | 'stamp' | 'ocr' | 'image' | 'forms';
+  /** Language of the page content when it is not English. */
+  lang?: 'hi';
+  /** The same page in other languages, for hreflang: { 'hi-IN': '/hindi-pdf-editor' }. */
+  alternates?: Record<string, string>;
+  /** When the page content last changed (YYYY-MM-DD), for the sitemap. */
+  updated?: string;
 }
+
+/**
+ * A block of long-form help. Paragraphs may contain [links](/path). List items written as
+ * "Label: text" show the label in bold.
+ */
+export interface Section {
+  h2: string;
+  body?: string[];
+  list?: string[];
+  table?: { head: string[]; rows: string[][] };
+}
+
+/** Date the catalogue's text was last revised; pages without their own date use it. */
+export const CONTENT_UPDATED = '2026-11-16';
 
 export const CATEGORIES: Category[] = [
   {
@@ -104,22 +134,93 @@ export const TOOLS: Tool[] = [
     no: 1,
     name: 'PDF Editor',
     short: 'Change the text in a PDF, add images, sign and fill forms',
-    title: 'PDF Editor Online – Edit PDF Text Free, No Watermark',
-    description: 'Edit the existing text of a PDF, add text, images and signatures, fill forms, redact and OCR scans. Free online PDF editor that works in your browser.',
-    h1: 'Edit a PDF online',
+    title: 'PDF Editor: Edit PDF Text Online Free, No Upload',
+    description: 'Free online PDF editor that changes the existing text. Add text, images and signatures, fill forms, OCR scans. Runs in your browser: no upload, no watermark.',
+    h1: 'PDF Editor: edit PDF text online, free',
     intro:
-      'Click on any line of a PDF and type: the editor keeps the original font where it can and moves the rest of the paragraph along. You can also add text boxes, pictures, highlights, shapes, signatures and form fields, then download a normal PDF.',
+      'Click any line of a PDF and type. The editor removes the old words and writes yours in the same font where the PDF allows, moving the rest of the paragraph along. Add text, images, signatures, highlights and form fields, fix scanned pages with OCR, then download a normal PDF. Everything happens in your browser: the file is never uploaded.',
     steps: [
-      'Open your PDF. It is read in your browser, not uploaded.',
-      'Pick Edit Text and click the words you want to change, or use the other tools to add things.',
-      'Press Download PDF. Your edits are written into the file.',
+      'Open your PDF with the button above or drop it on the editor. It is read on your device, not uploaded.',
+      'Choose Edit Text and click the words you want to change, or pick another tool: Add Text, Sign, Highlight, Image, Whiteout, Draw, Shapes, Form or Stamp.',
+      'Press Download PDF. Your changes are written into a normal PDF that opens anywhere, with no watermark.',
+    ],
+    sections: [
+      {
+        h2: 'What you can do with this PDF editor',
+        list: [
+          'Edit existing text: change words, numbers, dates and whole paragraphs; the text reflows and keeps its font, size and colour where the PDF includes them.',
+          'Add text: type anywhere on the page in the font, size and colour you choose, including Hindi.',
+          'Sign: draw or upload your signature once, save it, and drop it on any page with a click; add initials, today’s date, ticks and crosses. See [Sign PDF](/sign-pdf).',
+          'Fill and create forms: type into a PDF’s own form fields, or add text fields and check boxes to a PDF that has none. See [Fill PDF form](/fill-pdf-form).',
+          'Scanned PDFs: recognise the text of scans and photos (OCR, English and Hindi) so it can be searched, copied and edited. See [Edit scanned PDF](/edit-scanned-pdf).',
+          'Images: add photos, logos and stamps; move, resize, replace or delete pictures that are already in the PDF. See [Add image to PDF](/add-image-to-pdf).',
+          'Mark up: highlight, underline and strike out text, draw freehand, add shapes, arrows, links, tables and sticky-note comments.',
+          'Redact and clean: black out text so it is removed from the file for good, find and redact phone numbers, emails and ID numbers, and strip hidden data. See [Redact PDF](/redact-pdf).',
+          'Pages: rotate, reorder, delete, duplicate and insert pages, combine files, split one PDF into several, and add headers, footers, page numbers and watermarks. See [Watermark PDF](/watermark-pdf).',
+          'Save and share: password-protect the result, make it smaller, print it, or export pages as JPG/PNG pictures or plain text.',
+        ],
+      },
+      {
+        h2: 'How editing the existing text works',
+        body: [
+          'Most online editors can only put a white box over old text and type on top, so the old words stay in the file and the new ones never quite match. This editor changes the text itself: it removes the original characters from the page content and writes the new ones in the same place.',
+          'Where the PDF carries the font, the new text uses that exact font. When a letter is missing from the embedded font (PDFs often include only the characters they use), a close match is chosen and you can see and change it. Paragraphs reflow as you type, so lines stay in their column.',
+          'Hindi and other Devanagari text is shaped properly, with joined letters and matras in the right place, both on screen and in the downloaded PDF.',
+        ],
+      },
+      {
+        h2: 'Your PDF never leaves your device',
+        body: [
+          'The editor is a program that runs in your browser tab. Your file is opened from your own disk and the finished PDF is saved back to it; nothing is sent to Toolyverse or anyone else. That is why it is fast even on large files, why it works for confidential documents such as contracts, salary slips, bank statements and ID proofs, and why there is nothing to delete afterwards.',
+          'If you turn on auto-save, a copy of your work is kept in your browser’s own storage on this device, so you can close the tab and continue later. You can switch it off at any time.',
+        ],
+      },
+      {
+        h2: 'How it compares',
+        table: {
+          head: ['', 'Toolyverse PDF Editor', 'Typical upload-based online editors', 'Desktop PDF software'],
+          rows: [
+            ['Change the existing text', 'Yes, in the original font where available', 'Often only cover it and type on top', 'Yes'],
+            ['Where your file goes', 'Stays on your device', 'Uploaded to their servers', 'Stays on your computer'],
+            ['Price', 'Free; free account for bigger files', 'Free tier with daily limits, then subscription', 'Paid licence or subscription'],
+            ['Watermark on the result', 'Never', 'Sometimes on free plans', 'No'],
+            ['Install', 'Nothing; any modern browser', 'Nothing', 'Install and update the program'],
+            ['Hindi text', 'Shaped correctly', 'Varies', 'Varies'],
+          ],
+        },
+      },
+      {
+        h2: 'Works on Windows, Mac, Linux, Android and iPhone',
+        body: [
+          'Use it in Chrome, Edge, Firefox or Safari on any computer. It also works on phones and tablets; for detailed edits a larger screen is easier. There is no app to install and no account needed; a [free account](/signup) raises the file size limit and keeps your saved signatures on every device you log in on.',
+        ],
+      },
     ],
     faqs: [
+      { q: 'Is this PDF editor really free?', a: 'Yes. Every editing feature is free, there is no trial and no watermark. A free account only raises the file size limit and saves your signatures and details across devices.' },
       { q: 'Can I really change the existing text, not just cover it?', a: 'Yes. The old words are removed from the page and the new ones are written in their place, in the same font when the PDF includes it. If the font is missing a letter, a close match is used.' },
       { q: 'Is my document uploaded anywhere?', a: 'No. The editor runs entirely in your browser. Closing the tab removes it unless you turned on auto-save, which keeps a copy only in your own browser.' },
-      { q: 'Does it work with scanned PDFs?', a: 'Yes. Use "Recognise text (OCR)" from the File menu first; the scanned words then become searchable and editable.' },
+      { q: 'Does it work with scanned PDFs?', a: 'Yes. Use "Recognise text (OCR)" from the File menu first; the scanned words, in English or Hindi, then become searchable and editable.' },
       { q: 'Is there a watermark on the result?', a: 'No. The downloaded PDF contains only your document and your changes.' },
+      { q: 'Can I edit a password-protected PDF?', a: 'Yes, if you know the password: the editor asks for it when you open the file. You can keep the protection, change it or remove it when you download.' },
+      { q: 'Can I edit Hindi text in a PDF?', a: 'Yes. Hindi text can be edited and added, and are shaped correctly in the downloaded file. There is also a [Hindi version of this page](/hindi-pdf-editor).' },
+      { q: 'How big a PDF can I edit?', a: 'Up to 25 MB without an account and 100 MB with a free account. Long documents with hundreds of pages work; very large scans are slower on older phones.' },
+      { q: 'Will the edited PDF open in Adobe Reader and on phones?', a: 'Yes. The result is a standard PDF that opens in Adobe Acrobat Reader, browsers, phones and every other PDF viewer.' },
+      { q: 'Can I undo a change?', a: 'Yes. Every change can be undone and redone (Ctrl+Z and Ctrl+Y), and the original file on your disk is never changed.' },
     ],
+    featureList: [
+      'Edit existing PDF text in the original font',
+      'Add text, images, shapes and links',
+      'Sign PDF with saved signatures, initials and date',
+      'Fill and create PDF form fields',
+      'OCR for scanned PDFs in English and Hindi',
+      'Secure redaction and hidden data removal',
+      'Rotate, reorder, delete, combine and split pages',
+      'Headers, footers, page numbers and watermarks',
+      'Password protection and compression',
+      'Works offline in the browser, no upload',
+    ],
+    alternates: { 'hi-IN': '/hindi-pdf-editor' },
     features: [
       { key: 'editText', label: 'Edit existing text', hint: 'Edit Text tool', default: true },
       { key: 'sign', label: 'Sign and saved signatures', hint: 'Sign menu: signatures, initials, date, ticks, saved details', default: true },
@@ -132,8 +233,8 @@ export const TOOLS: Tool[] = [
       { key: 'print', label: 'Print', hint: 'Print button and Ctrl+P', default: true },
     ],
     limits: { publicMb: 25, memberMb: 100 },
-    related: ['merge-pdf', 'compress-pdf', 'split-pdf', 'protect-pdf'],
-    keywords: ['pdf editor', 'edit pdf online', 'edit pdf text', 'pdf editor free', 'sign pdf'],
+    related: ['sign-pdf', 'fill-pdf-form', 'edit-scanned-pdf', 'merge-pdf', 'compress-pdf'],
+    keywords: ['pdf editor', 'edit pdf', 'edit pdf online', 'edit pdf text', 'pdf editor free', 'online pdf editor', 'free pdf editor no watermark', 'pdf editor online free', 'edit text in pdf', 'pdf editor without uploading'],
   },
   {
     slug: 'merge-pdf',
@@ -570,6 +671,9 @@ export const TOOLS: Tool[] = [
     keywords: ['word counter', 'character counter', 'count words online'],
   },
 ];
+
+// Landing pages for each PDF editor search intent (sign, fill forms, OCR, redact...).
+TOOLS.push(...EDITOR_PAGES);
 
 export const toolBySlug = new Map(TOOLS.map((t) => [t.slug, t]));
 export const categoryById = new Map(CATEGORIES.map((c) => [c.id, c]));

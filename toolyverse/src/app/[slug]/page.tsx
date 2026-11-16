@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CategoryGlyph } from '@/components/CategoryGlyph';
 import { JsonLd } from '@/components/JsonLd';
+import { Rich, Sections } from '@/components/Sections';
 import { ToolList } from '@/components/ToolList';
 import { getViewer } from '@/lib/auth/session';
 import { SITE } from '@/lib/config';
-import { categoryById, categoryBySlug, categoryPath, toolBySlug, toolNo, toolPath, toolsIn, type Category, type Tool } from '@/lib/tools/registry';
+import { CONTENT_UPDATED, categoryById, categoryBySlug, categoryPath, toolBySlug, toolNo, toolPath, toolsIn, type Category, type Tool } from '@/lib/tools/registry';
 import { accessFor, allToolStates } from '@/lib/tools/settings';
 import { ToolHost } from '@/tools/ToolHost';
 
@@ -19,18 +20,22 @@ export async function generateMetadata({ params }: PageProps<'/[slug]'>): Promis
   const tool = toolBySlug.get(slug);
   if (!tool) return {};
   const state = (await allToolStates()).get(slug);
-  const m = meta(tool.title, tool.description, toolPath(tool));
+  const m = meta(tool.title, tool.description, toolPath(tool), tool);
   // A switched-off tool is gone from the site; tell search engines not to keep it.
   if (!state?.enabled) m.robots = { index: false, follow: true };
   return m;
 }
 
-function meta(title: string, description: string, path: string): Metadata {
+function meta(title: string, description: string, path: string, tool?: Tool): Metadata {
+  // A page in two languages points at both versions (hreflang), each naming itself too.
+  const languages = tool?.alternates ? { [tool.lang === 'hi' ? 'hi-IN' : 'en-IN']: path, ...tool.alternates } : undefined;
   return {
-    title: { absolute: `${title} | ${SITE.name}` },
+    // Google shows about 60 characters: the brand is added only when it still fits.
+    title: { absolute: title.length + SITE.name.length + 3 <= 62 ? `${title} | ${SITE.name}` : title },
     description,
-    alternates: { canonical: path },
-    openGraph: { title, description, url: path, type: 'website', siteName: SITE.name },
+    keywords: tool?.keywords,
+    alternates: { canonical: path, languages },
+    openGraph: { title, description, url: path, type: 'website', siteName: SITE.name, locale: tool?.lang === 'hi' ? 'hi_IN' : SITE.locale },
     twitter: { card: 'summary_large_image', title, description },
   };
 }
@@ -117,10 +122,11 @@ async function ToolPage({ tool }: { tool: Tool }) {
   const related = tool.related.map((s) => toolBySlug.get(s)!).filter((t) => t && states.get(t.slug)?.enabled);
   const url = `${SITE.url}${toolPath(tool)}`;
   // Big working screens get the full width; the help text stays at reading width.
-  const wide = ['pdf-editor', 'gstr1-to-excel', 'gstr3b-to-excel', 'gstr1-vs-gstr3b', 'gstr2b-merger'].includes(tool.slug);
+  const runs = tool.opens ?? tool.slug;
+  const wide = ['pdf-editor', 'gstr1-to-excel', 'gstr3b-to-excel', 'gstr1-vs-gstr3b', 'gstr2b-merger'].includes(runs);
 
   return (
-    <article>
+    <article lang={tool.lang}>
       <JsonLd
         data={{
           '@context': 'https://schema.org',
@@ -134,6 +140,10 @@ async function ToolPage({ tool }: { tool: Tool }) {
               operatingSystem: 'Any (runs in the browser)',
               browserRequirements: 'Requires JavaScript',
               isAccessibleForFree: true,
+              inLanguage: tool.lang === 'hi' ? 'hi-IN' : 'en-IN',
+              screenshot: `${url}/opengraph-image`,
+              ...(tool.featureList ? { featureList: tool.featureList } : {}),
+              dateModified: tool.updated ?? CONTENT_UPDATED,
               offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
               publisher: { '@id': `${SITE.url}/#org` },
             },
@@ -144,7 +154,7 @@ async function ToolPage({ tool }: { tool: Tool }) {
             ]),
             {
               '@type': 'FAQPage',
-              mainEntity: tool.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+              mainEntity: tool.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') } })),
             },
           ],
         }}
@@ -177,13 +187,13 @@ async function ToolPage({ tool }: { tool: Tool }) {
             </div>
           </div>
         ) : (
-          <ToolHost slug={tool.slug} features={state.features} maxMb={access.maxMb} memberMaxMb={access.memberMaxMb} signedIn={!!viewer} />
+          <ToolHost slug={runs} focus={tool.focus} features={state.features} maxMb={access.maxMb} memberMaxMb={access.memberMaxMb} signedIn={!!viewer} />
         )}
       </section>
 
       <div className="mx-auto grid max-w-[1180px] gap-12 px-4 sm:px-6 lg:grid-cols-[1fr_300px]">
         <div className="prose-tv">
-          <h2>How to use {tool.name}</h2>
+          <h2>{tool.lang === 'hi' ? 'कैसे इस्तेमाल करें' : `How to use ${tool.name}`}</h2>
           <ol className="mt-4 space-y-3">
             {tool.steps.map((s, i) => (
               <li key={s} className="grid grid-cols-[2.2rem_1fr] gap-2">
@@ -193,7 +203,9 @@ async function ToolPage({ tool }: { tool: Tool }) {
             ))}
           </ol>
 
-          <h2>Questions people ask</h2>
+          {tool.sections && <Sections sections={tool.sections} />}
+
+          <h2>{tool.lang === 'hi' ? 'अक्सर पूछे जाने वाले सवाल' : 'Questions people ask'}</h2>
           <div className="border-t border-rule">
             {tool.faqs.map((f) => (
               <details key={f.q} className="group border-b border-rule py-1">
@@ -203,7 +215,9 @@ async function ToolPage({ tool }: { tool: Tool }) {
                     +
                   </span>
                 </summary>
-                <p className="pb-3">{f.a}</p>
+                <p className="pb-3">
+                  <Rich text={f.a} />
+                </p>
               </details>
             ))}
           </div>

@@ -8,7 +8,9 @@ import { CATEGORIES, TOOLS, categoryPath, toolPath, toolsIn } from '@/lib/tools/
 import { allToolStates } from '@/lib/tools/settings';
 
 export const metadata = {
-  title: { absolute: 'Toolyverse – Free PDF, Image, GST & Converter Tools Online' },
+  title: { absolute: 'Free PDF Editor & Online Tools, No Upload | Toolyverse' },
+  description:
+    'Free PDF editor that changes the text itself, plus tools to sign, merge and compress PDFs, shrink images, calculate GST and convert units. No upload.',
   alternates: { canonical: '/' },
 };
 
@@ -24,7 +26,14 @@ export default async function Home() {
           '@context': 'https://schema.org',
           '@graph': [
             { '@type': 'WebSite', '@id': `${SITE.url}/#website`, url: SITE.url, name: SITE.name, inLanguage: 'en-IN', description: SITE.tagline },
-            { '@type': 'Organization', '@id': `${SITE.url}/#org`, name: SITE.name, url: SITE.url, logo: `${SITE.url}/icon.svg` },
+            {
+              '@type': 'Organization',
+              '@id': `${SITE.url}/#org`,
+              name: SITE.name,
+              url: SITE.url,
+              logo: `${SITE.url}/icon.svg`,
+              ...(SITE.sameAs.length ? { sameAs: SITE.sameAs } : {}),
+            },
             {
               '@type': 'ItemList',
               name: 'Toolyverse tools',
@@ -37,12 +46,12 @@ export default async function Home() {
       <section className="border-b border-rule">
         <div className="mx-auto grid max-w-[1180px] gap-10 px-4 pb-14 pt-12 sm:px-6 md:grid-cols-[1fr_300px] md:pt-16">
           <div>
-            <p className="label">The everyday tool catalogue · {visible.length} tools</p>
-            <h1 className="display mt-4 max-w-[14ch] text-[3.1rem] sm:text-[4.4rem]">
+            <h1 className="label">Free PDF editor and online tools · {visible.length} tools, no upload</h1>
+            <p className="display mt-4 max-w-[14ch] text-[3.1rem] sm:text-[4.4rem]">
               Small jobs, <span className="italic text-signal">done properly.</span>
-            </h1>
+            </p>
             <p className="mt-5 max-w-[56ch] text-[1.08rem] text-ink-2">
-              Edit a PDF, shrink a photo for an exam form, work out GST on a quote, write an amount in words for a cheque. Every tool here runs in your browser, so your
+              Edit the text of a PDF and sign it, shrink a photo for an exam form, work out GST on a quote, write an amount in words for a cheque. Every tool here runs in your browser, so your
               files stay on your device.
             </p>
             <div className="mt-8 max-w-[560px]">

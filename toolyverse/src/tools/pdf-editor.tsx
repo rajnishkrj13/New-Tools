@@ -53,7 +53,7 @@ export default function PdfEditor(props: ToolProps) {
         <iframe
           ref={frame}
           title="PDF editor"
-          src="/pdf-editor/app/index.html?embed=1"
+          src={`/pdf-editor/app/index.html?embed=1${props.focus ? `&focus=${props.focus}` : ''}`}
           className={full ? 'w-full flex-1' : 'h-[82vh] min-h-[620px] w-full'}
           allow="clipboard-read; clipboard-write; fullscreen"
         />

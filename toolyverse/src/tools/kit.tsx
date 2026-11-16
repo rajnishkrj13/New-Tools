@@ -9,6 +9,8 @@ export interface ToolProps {
   maxMb: number | null;
   memberMaxMb: number | null;
   signedIn: boolean;
+  /** PDF editor pages: the tool to open first. */
+  focus?: string;
 }
 
 export const formatSize = (n: number) =>

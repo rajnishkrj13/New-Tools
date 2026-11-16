@@ -39,5 +39,8 @@ export function sizeLimitProblem(name: string, size: number): string | null {
   return `"${name}" is ${mb} MB; the limit here is ${max} MB.${more}`;
 }
 
+/** The tool a Toolyverse landing page asks for ("sign", "ocr"…), opened once the first file is loaded. */
+export const FOCUS = EMBEDDED ? new URLSearchParams(location.search).get('focus') : null;
+
 /** Saved signatures and details follow a signed-in member to other devices. */
 export const syncsToAccount = () => EMBEDDED && !!config?.signedIn;

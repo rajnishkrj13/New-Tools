@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   openGraph: { type: 'website', siteName: SITE.name, locale: SITE.locale },
   twitter: { card: 'summary_large_image' },
   formatDetection: { telephone: false },
+  // Search Console / Bing Webmaster ownership tags, from the environment (see .env.example).
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.BING_SITE_VERIFICATION ? { 'msvalidate.01': process.env.BING_SITE_VERIFICATION } : undefined,
+  },
 };
 
 export const viewport: Viewport = {

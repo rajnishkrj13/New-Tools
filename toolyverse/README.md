@@ -32,6 +32,18 @@ the PDF editor from `../pdf-editor`.
   BreadcrumbList, FAQPage, ItemList), XML sitemap and robots.txt that drop switched-off tools,
   server-rendered tool pages with how-to steps and FAQs, internal links from every page.
 
+## SEO
+
+- The PDF editor page (`/pdf-editor`) carries the long-form content; one landing page per search
+  intent opens the same editor on the right tool: `/sign-pdf`, `/fill-pdf-form`,
+  `/add-text-to-pdf`, `/edit-scanned-pdf`, `/redact-pdf`, `/watermark-pdf`, `/add-image-to-pdf`,
+  and `/hindi-pdf-editor` in Hindi (linked to the English page with hreflang). Their content is in
+  `src/lib/tools/editor-pages.ts`; sections, FAQs and keywords for every tool are in
+  `src/lib/tools/registry.ts`. Change `CONTENT_UPDATED` (or a page's `updated`) when you revise text.
+- After launch: set `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION`, verify the domain in
+  Google Search Console and Bing Webmaster Tools, submit `/sitemap.xml`, and set
+  `NEXT_PUBLIC_SITE_SAME_AS` to the brand's social profiles.
+
 ## Run it locally
 
 ```bash
