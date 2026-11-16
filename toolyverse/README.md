@@ -91,7 +91,8 @@ Search Console.
   `src/tools/<slug>.tsx`. Adding a tool: add an entry to the registry and a component to
   `src/tools/ToolHost.tsx`.
 - Schema changes: edit `src/lib/db/schema.ts`, then `npm run db:generate`.
-- `src/lib/pdf/PdfTools.ts` is a copy of `pdf-editor/src/engines/PdfTools.ts`; keep them in step.
+- Code shared with the editor is imported from `../pdf-editor/src` through the `@editor/*` alias
+  (for example `@editor/engines/PdfTools`). There is one copy; do not duplicate it here.
 
 ## Notes
 

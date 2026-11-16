@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { zipStore } from '@/lib/pdf/PdfTools';
+import { zipStore } from '@editor/engines/PdfTools';
 import { EXT, drawCanvas, encode, loadBitmap, needsBackground, type OutType } from '@/lib/image';
 import { Bench, Field, FileDrop, Notice, Segmented, Spinner, baseName, download, formatSize, type ToolProps } from './kit';
 

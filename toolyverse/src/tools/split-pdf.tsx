@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { groupLabel, splitGroups, zipStore, type SplitSpec } from '@/lib/pdf/PdfTools';
+import { groupLabel, splitGroups, zipStore, type SplitSpec } from '@editor/engines/PdfTools';
 import { Bench, FileDrop, Notice, Spinner, baseName, download, type ToolProps } from './kit';
 import { usePdfFile } from './usePdfFile';
 

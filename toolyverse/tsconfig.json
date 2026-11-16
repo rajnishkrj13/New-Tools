@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@editor/*": ["../pdf-editor/src/*"]
     }
   },
   "include": [

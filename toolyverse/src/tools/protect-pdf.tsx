@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FULL_PERMISSIONS, lockPdf } from '@/lib/pdf/PdfTools';
+import { FULL_PERMISSIONS, lockPdf } from '@editor/engines/PdfTools';
 import { Bench, Field, FileDrop, Notice, Spinner, baseName, download, type ToolProps } from './kit';
 import { usePdfFile } from './usePdfFile';
 

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
@@ -6,6 +7,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@electric-sql/pglite', 'pg'],
   poweredByHeader: false,
   turbopack: {
+    // The site imports shared code from ../pdf-editor, so the project root is the repository.
+    root: path.join(__dirname, '..'),
     rules: {
       '*.css': {
         loaders: ['@tailwindcss/turbopack'],

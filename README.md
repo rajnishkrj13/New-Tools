@@ -1,8 +1,28 @@
 # New-Tools
 
-Daily-use tools.
+Daily Uses Tool.
 
-- **[toolyverse/](toolyverse/)**: the Toolyverse website. Free PDF, image, GST and converter
-  tools that run in the browser, with member accounts and an admin panel. Next.js + Postgres.
-- **[pdf-editor/](pdf-editor/)**: the full browser PDF editor (React, Vite, pdf.js, pdf-lib).
-  It runs on its own and is also embedded in Toolyverse at `/pdf-editor`.
+| Folder | What it is |
+|---|---|
+| `pdf-editor/` | The PDF editor (React + Vite). Runs on its own, with no server or database. |
+| `toolyverse/` | The website (Next.js) with 24 tools. It embeds the editor and imports code shared with it from `pdf-editor/src` through the `@editor/*` alias. |
+
+Run everything from this folder:
+
+```bash
+npm run install:all
+```
+
+```bash
+npm run editor
+```
+
+`npm run editor` starts the editor alone at http://localhost:5173. To run the website at
+http://localhost:3000 (it builds the editor into it first):
+
+```bash
+npm run site
+```
+
+`npm test`, `npm run typecheck` and `npm run build` run for both projects.
+Each project's own README has the details.

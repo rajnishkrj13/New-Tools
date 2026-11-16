@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { looksEncrypted } from '@/lib/pdf/PdfTools';
+import { looksEncrypted } from '@editor/engines/PdfTools';
 
 /** Reads one chosen PDF and its page count, with plain-language errors. */
 export function usePdfFile() {

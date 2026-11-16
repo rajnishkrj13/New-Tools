@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { imagesToPdf, looksEncrypted, mergePdfs } from '@/lib/pdf/PdfTools';
+import { imagesToPdf, looksEncrypted, mergePdfs } from '@editor/engines/PdfTools';
 import { toPdfPicture } from '@/lib/image';
 import { Bench, FileDrop, Notice, Spinner, download, formatSize, sizeProblem, type ToolProps } from './kit';
 import { FileOrder } from './FileOrder';

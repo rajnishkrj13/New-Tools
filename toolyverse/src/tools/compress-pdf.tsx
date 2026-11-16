@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { COMPRESS_LEVELS, compressPdfImages } from '@/lib/pdf/PdfTools';
+import { COMPRESS_LEVELS, compressPdfImages } from '@editor/engines/PdfTools';
 import { recodeJpeg } from '@/lib/image';
 import { Bench, FileDrop, Notice, Segmented, Spinner, baseName, download, formatSize, type ToolProps } from './kit';
 import { usePdfFile } from './usePdfFile';

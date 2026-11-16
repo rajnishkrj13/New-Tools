@@ -1,0 +1,14 @@
+{
+  "name": "new-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PDF editor (pdf-editor) and the Toolyverse website that embeds it (toolyverse).",
+  "scripts": {
+    "install:all": "npm --prefix pdf-editor install && npm --prefix toolyverse install",
+    "editor": "npm --prefix pdf-editor run dev -- --port 5173 --strictPort",
+    "site": "npm --prefix pdf-editor run build:embed && npm --prefix toolyverse run dev",
+    "test": "npm --prefix pdf-editor test && npm --prefix toolyverse test",
+    "typecheck": "npm --prefix pdf-editor run typecheck && npm --prefix toolyverse run typecheck",
+    "build": "npm --prefix pdf-editor run build:embed && npm --prefix toolyverse run build"
+  }
+}
