@@ -10,6 +10,7 @@ import type { PromptRequest } from './promptActions';
 import type { SearchMode } from '../engines/TextSearch';
 import { NO_CLEANING, type CleanOptions, type DocProps } from '../engines/PdfPrivacy';
 import type { Protection } from '../engines/PdfTools';
+import { EMPTY_PROFILE, type Placement, type Profile } from '../engines/Profile';
 
 /** What one undo step restores: the edits and the page structure (order, rotation, added/deleted pages). */
 export interface Snapshot {
@@ -98,6 +99,17 @@ interface EditorState {
   viewerSize: { width: number; height: number };
   fontVersion: number;
   signatureOpen: boolean;
+  /** What the signature dialog makes: a signature or initials. */
+  signatureKind: 'signature' | 'initials';
+  /** The item the Place tool puts down on every click. */
+  placing: Placement | null;
+  /** Saved signatures, details and date format (kept on this device). */
+  profile: Profile;
+  profileOpen: boolean;
+  setProfileOpen: (open: boolean) => void;
+  /** Files waiting in the Combine dialog (null: closed). */
+  combine: File[] | null;
+  setCombine: (files: File[] | null) => void;
   toasts: Toast[];
 
   openDocument: (doc: DocumentInfo, pages: PageInfo[], bytes: Uint8Array) => void;
@@ -130,7 +142,7 @@ interface EditorState {
   goToPage: (page: number) => void;
   setViewerSize: (width: number, height: number) => void;
   bumpFonts: () => void;
-  setSignatureOpen: (open: boolean) => void;
+  setSignatureOpen: (open: boolean, kind?: 'signature' | 'initials') => void;
   setExportState: (patch: Partial<ExportState>) => void;
   setLastExport: (value: EditorState['lastExport']) => void;
   toast: (message: string, kind?: Toast['kind']) => void;
@@ -229,6 +241,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   viewerSize: { width: 0, height: 0 },
   fontVersion: 0,
   signatureOpen: false,
+  signatureKind: 'signature',
+  placing: null,
+  profile: EMPTY_PROFILE,
+  profileOpen: false,
+  setProfileOpen: (profileOpen) => set({ profileOpen }),
+  combine: null,
+  setCombine: (combine) => set({ combine }),
   toasts: [],
 
   openDocument: (doc, pages, bytes) => {
@@ -339,6 +358,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTool: (tool) =>
     set((s) => ({
       tool,
+      placing: tool === 'place' ? s.placing : null,
       lastShape: ['rect', 'ellipse', 'line', 'arrow'].includes(tool) ? tool : s.lastShape,
       selectedId: tool === 'select' ? s.selectedId : null,
       extraSelected: tool === 'select' ? s.extraSelected : [],
@@ -369,7 +389,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   goToPage: (page) => set((s) => ({ currentPage: page, scrollRequest: { page, n: (s.scrollRequest?.n ?? 0) + 1 } })),
   setViewerSize: (width, height) => set({ viewerSize: { width, height } }),
   bumpFonts: () => set((s) => ({ fontVersion: s.fontVersion + 1 })),
-  setSignatureOpen: (signatureOpen) => set({ signatureOpen }),
+  setSignatureOpen: (signatureOpen, kind) => set((s) => ({ signatureOpen, signatureKind: kind ?? s.signatureKind })),
   setExportState: (patch) => set((s) => ({ exportState: { ...s.exportState, ...patch } })),
   setLastExport: (lastExport) => set({ lastExport, dirty: false }),
   toast: (message, kind = 'info') => {

@@ -681,6 +681,21 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
           }
           break;
         }
+        case 'mark': {
+          const color = hexToRgb(o.color);
+          const at = (fx: number, fy: number) => `${o.x + fx * o.width} ${o.y + fy * o.height}`;
+          if (o.mark === 'dot') {
+            inView(boxFrame(o), () => page.drawEllipse({ x: o.width / 2, y: o.height / 2, xScale: o.width * 0.32, yScale: o.height * 0.32, color, opacity: o.opacity }));
+          } else {
+            const d = o.mark === 'check' ? `M ${at(0.12, 0.55)} L ${at(0.4, 0.84)} L ${at(0.9, 0.16)}` : `M ${at(0.18, 0.18)} L ${at(0.82, 0.82)} M ${at(0.82, 0.18)} L ${at(0.18, 0.82)}`;
+            inView(
+              FLIP_Y,
+              () => page.drawSvgPath(d, { x: 0, y: 0, borderColor: color, borderWidth: o.strokeWidth, borderOpacity: o.opacity, borderLineCap: LineCapStyle.Round }),
+              [setLineJoin(LineJoinStyle.Round)],
+            );
+          }
+          break;
+        }
         case 'image': {
           const image = await imageFor(o.assetId);
           inView(boxFrame(o), () => page.drawImage(image, { x: 0, y: 0, width: o.width, height: o.height, opacity: o.opacity }));

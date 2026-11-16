@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, EyeOff, FileImage, FileOutput, FileText, Images, Lock, Menu, Minimize2, ScanText, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, Combine, EyeOff, FileImage, FileOutput, FileText, Images, Lock, Menu, Minimize2, ScanText, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { useEditorStore } from '../store/documentStore';
 import { createFromImages, downloadSmaller, exportImages, exportText, extractPages, recognizeText } from '../hooks/useFileTools';
 import { getState } from '../store/documentStore';
@@ -77,6 +77,7 @@ export function FileMenu() {
           {item(<EyeOff size={16} />, 'Remove hidden data…', 'Comments, attachments, scripts, bookmarks and more', () => getState().setPrivacyDialog('clean'))}
           {item(<Lock size={16} />, locked ? 'Change or remove protection…' : 'Protect with a password…', 'A password to open, and limits on printing, copying and editing', () => getState().setPrivacyDialog('protect'))}
           {group('New')}
+          {item(<Combine size={16} />, 'Combine files…', 'Join several PDFs and pictures into one, in the order you choose', () => getState().setCombine([]))}
           {item(<Images size={16} />, 'New PDF from pictures…', 'One page per PNG, JPG or WebP picture, in a new tab', () => images.current?.click())}
         </div>
       )}

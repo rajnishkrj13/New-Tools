@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName, PDFNumber, PDFRawStream } from 'pdf-lib';
+import { PDFDict, PDFDocument, PDFName, PDFNumber, PDFRawStream, PDFRef } from 'pdf-lib';
 
 /**
  * File-level tools that do not depend on the editor: page ranges, a ZIP writer, building
@@ -85,6 +85,41 @@ export function zipStore(files: { name: string; bytes: Uint8Array }[]): Uint8Arr
     at += c.length;
   }
   return out;
+}
+
+// ---- combining files --------------------------------------------------------------------------
+
+/**
+ * Puts several PDFs one after another into a new document. Form fields stay fillable;
+ * bookmarks and document properties of the parts are not carried over.
+ */
+export async function mergePdfs(parts: Uint8Array[]): Promise<{ bytes: Uint8Array; counts: number[] }> {
+  const out = await PDFDocument.create();
+  const counts: number[] = [];
+  const fields = new Set<string>();
+  for (const part of parts) {
+    const src = await PDFDocument.load(part, { updateMetadata: false });
+    const pages = await out.copyPages(src, src.getPageIndices());
+    for (const page of pages) {
+      out.addPage(page);
+      // Form widgets come along with their page; their fields have to join the new form too.
+      for (const annot of page.node.Annots()?.asArray() ?? []) {
+        let ref = annot;
+        let dict = out.context.lookupMaybe(ref, PDFDict);
+        if (!dict || dict.get(PDFName.of('Subtype')) !== PDFName.of('Widget')) continue;
+        while (dict?.get(PDFName.of('Parent')) instanceof PDFRef) {
+          ref = dict.get(PDFName.of('Parent')) as PDFRef;
+          dict = out.context.lookupMaybe(ref, PDFDict);
+        }
+        if (ref instanceof PDFRef && !fields.has(ref.tag)) {
+          fields.add(ref.tag);
+          out.catalog.getOrCreateAcroForm().addField(ref);
+        }
+      }
+    }
+    counts.push(pages.length);
+  }
+  return { bytes: await out.save(), counts };
 }
 
 // ---- pictures -> PDF ----------------------------------------------------------------------------

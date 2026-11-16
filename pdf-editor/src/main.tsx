@@ -17,6 +17,8 @@ import * as privacyTools from './engines/PdfPrivacy';
 import * as searchTools from './store/searchActions';
 import * as tabTools from './store/tabActions';
 import { initAutoSave } from './hooks/useAutoSave';
+import { loadProfile } from './store/profileActions';
+import * as profileTools from './store/profileActions';
 
 installBundledFonts(() => {
   invalidateLayouts();
@@ -24,6 +26,7 @@ installBundledFonts(() => {
 });
 
 initAutoSave();
+loadProfile();
 useEditorStore.subscribe((s, prev) => {
   if (s.docKey !== prev.docKey || s.activeTab !== prev.activeTab) setOcrScope(s.activeTab ?? String(s.docKey));
 });
@@ -38,5 +41,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 // Development-only handle for automated tests and debugging. Not part of production builds.
 if (import.meta.env.DEV) {
-  (window as any).__pdfEditor = { store: useEditorStore, openPdfBytes, exportPdf, rasterizePage, getCachedTextModel, textEdit, pageTools, autoSave, fileTools, tabTools, privacyTools, searchTools };
+  (window as any).__pdfEditor = { store: useEditorStore, openPdfBytes, exportPdf, rasterizePage, getCachedTextModel, textEdit, pageTools, autoSave, fileTools, tabTools, privacyTools, searchTools, profileTools };
 }

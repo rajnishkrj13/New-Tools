@@ -107,8 +107,8 @@ export function insertBlankPage(after: number) {
   apply(pages, s.objects, after + 1);
 }
 
-/** Adds all pages of another PDF after `after`. The file stays on this device. */
-export async function insertPdfFile(file: File, after: number) {
+/** Adds the pages of another PDF after `after`, asking which pages when `ask` is set. Returns how many were added. */
+export async function insertPdfFile(file: File, after: number, ask = true): Promise<number> {
   const s = getState();
   s.setLoading(`Adding ${file.name}…`);
   try {
@@ -126,7 +126,7 @@ export async function insertPdfFile(file: File, after: number) {
     const id = `add-${newId()}`;
     const all = await readPages(await openSource(id, bytes), id);
     let added = all;
-    if (all.length > 1) {
+    if (all.length > 1 && ask) {
       getState().setLoading(null);
       const answer = await askText({
         title: 'Pages to add',
@@ -136,7 +136,7 @@ export async function insertPdfFile(file: File, after: number) {
         okLabel: 'Add pages',
         validate: (v) => (parsePageRanges(v, all.length) ? null : `Enter page numbers between 1 and ${all.length}, for example 1-3, 5.`),
       });
-      if (answer === null) return;
+      if (answer === null) return 0;
       // The same page may be asked for twice; each copy needs its own identity.
       const seen = new Map<string, number>();
       added = parsePageRanges(answer, all.length)!.map((i) => {
@@ -151,11 +151,28 @@ export async function insertPdfFile(file: File, after: number) {
     pages.splice(after + 1, 0, ...added);
     now.setLoading(null);
     apply(pages, now.objects, after + 1);
-    getState().toast(`Added ${added.length} page${added.length > 1 ? 's' : ''} from ${file.name}.`, 'success');
+    if (ask) getState().toast(`Added ${added.length} page${added.length > 1 ? 's' : ''} from ${file.name}.`, 'success');
+    return added.length;
   } catch (e: any) {
     getState().setLoading(null);
     getState().toast(e?.message ?? 'The PDF could not be added.', 'error');
+    return 0;
   }
+}
+
+/** Adds every page of several PDFs, in the order given, after `after`. */
+export async function insertPdfFiles(files: File[], after: number) {
+  if (files.length === 1) return void (await insertPdfFile(files[0], after));
+  let at = after;
+  let pages = 0;
+  let done = 0;
+  for (const f of files) {
+    const n = await insertPdfFile(f, at, false);
+    if (n) done++;
+    at += n;
+    pages += n;
+  }
+  if (done) getState().toast(`Added ${pages} page${pages === 1 ? '' : 's'} from ${done} file${done === 1 ? '' : 's'}.`, 'success');
 }
 
 /** Inserts a copy of a page right after it, with a copy of everything that was added to it. */

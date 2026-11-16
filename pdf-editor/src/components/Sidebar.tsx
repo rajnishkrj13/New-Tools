@@ -4,7 +4,7 @@ import type { PageInfo } from '../types/pdf';
 import { getPdfPage, release, renderPage, type RenderHandle } from '../engines/PdfRenderer';
 import { getState, useEditorStore } from '../store/documentStore';
 import { setAutoSaveEnabled } from '../hooks/useAutoSave';
-import { deletePage, duplicatePage, insertBlankPage, insertPdfFile, movePage, rotatePage } from '../store/pageActions';
+import { deletePage, duplicatePage, insertBlankPage, insertPdfFile, insertPdfFiles, movePage, rotatePage } from '../store/pageActions';
 import { CopyPlus } from 'lucide-react';
 
 const THUMB_WIDTH = 128;
@@ -212,11 +212,13 @@ export function Sidebar() {
           ref={pdfInput}
           type="file"
           accept="application/pdf,.pdf"
+          multiple
           hidden
           onChange={(e) => {
-            const f = e.target.files?.[0];
+            const files = Array.from(e.target.files ?? []);
             e.target.value = '';
-            if (f) insertPdfFile(f, getState().currentPage);
+            if (files.length === 1) insertPdfFile(files[0], getState().currentPage);
+            else if (files.length) insertPdfFiles(files, getState().currentPage);
           }}
         />
       </div>

@@ -54,6 +54,19 @@ export interface LinkObject extends BaseObject {
   removed?: boolean;
 }
 
+/** A tick, cross or dot, for ticking boxes on forms. */
+export interface MarkObject extends BaseObject {
+  type: 'mark';
+  mark: 'check' | 'cross' | 'dot';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  strokeWidth: number;
+  opacity: number;
+}
+
 /** A sticky-note comment. width/height are the size of its icon. */
 export interface NoteObject extends BaseObject {
   type: 'note';
@@ -254,6 +267,7 @@ export type EditorObject =
   | LinkObject
   | NoteObject
   | FieldObject
+  | MarkObject
   | TextEditObject;
 
 export type ObjectType = EditorObject['type'];

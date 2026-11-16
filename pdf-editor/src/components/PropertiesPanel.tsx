@@ -341,7 +341,7 @@ function Actions({ o }: { o: EditorObject }) {
 const TITLES: Record<string, string> = {
   text: 'Text box', image: 'Image', rect: 'Rectangle', ellipse: 'Circle', line: 'Line', arrow: 'Arrow', path: 'Drawing',
   whiteout: 'Whiteout', redact: 'Secure redaction', highlight: 'Text mark', table: 'Table',
-  link: 'Link', note: 'Comment', field: 'Form field',
+  link: 'Link', note: 'Comment', field: 'Form field', mark: 'Mark',
 };
 
 function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }> }) {
@@ -449,6 +449,21 @@ function ObjectProperties({ o }: { o: Exclude<EditorObject, { type: 'textedit' }
         <Section title="Appearance">
           <Color label="Color" value={o.stroke} onChange={(v) => update({ stroke: v }, 'stroke')} />
           <Num label="Thickness" value={o.strokeWidth} min={0.25} max={60} step={0.5} onChange={(v) => update({ strokeWidth: v }, 'sw')} />
+          <Opacity value={o.opacity} onChange={(v) => update({ opacity: v }, 'opacity')} />
+        </Section>
+      )}
+      {o.type === 'mark' && (
+        <Section title="Appearance">
+          <label className="flex items-center justify-between text-xs text-slate-600">
+            <span>Mark</span>
+            <select value={o.mark} onChange={(e) => update({ mark: e.target.value as typeof o.mark }, 'mark')} className="h-7 rounded-md border border-slate-200 bg-white px-1 text-xs">
+              <option value="check">Tick</option>
+              <option value="cross">Cross</option>
+              <option value="dot">Dot</option>
+            </select>
+          </label>
+          <Color label="Color" value={o.color} onChange={(v) => update({ color: v }, 'color')} />
+          {o.mark !== 'dot' && <Num label="Thickness" value={o.strokeWidth} min={0.5} max={8} step={0.25} onChange={(v) => update({ strokeWidth: v }, 'sw')} />}
           <Opacity value={o.opacity} onChange={(v) => update({ opacity: v }, 'opacity')} />
         </Section>
       )}
@@ -595,6 +610,7 @@ const TIPS: Record<string, string> = {
   note: 'Click on the page to place a comment.',
   textfield: 'Drag on the page to add a fillable text field.',
   checkbox: 'Click on the page to add a check box.',
+  place: 'Click on the page to place it. Press Esc or pick another tool when you are done.',
 };
 
 export function PropertiesPanel() {

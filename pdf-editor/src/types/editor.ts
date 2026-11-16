@@ -16,7 +16,9 @@ export type Tool =
   | 'link'
   | 'note'
   | 'textfield'
-  | 'checkbox';
+  | 'checkbox'
+  /** Puts the item chosen in the Sign menu wherever you click. */
+  | 'place';
 
 /** One place where the searched text was found. */
 export interface SearchHit {

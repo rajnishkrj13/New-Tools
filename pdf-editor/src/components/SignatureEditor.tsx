@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Eraser, Upload, X } from 'lucide-react';
-import { insertImageFile, placeAsset } from '../hooks/usePdfDocument';
 import { getState, useEditorStore } from '../store/documentStore';
-import { canvasToTrimmedAsset } from '../utils/imageUtils';
+import { placeSavedMark, saveMark } from '../store/profileActions';
+import { canvasToTrimmedAsset, importImageFile } from '../utils/imageUtils';
 
 const INKS = ['#111827', '#1d4ed8', '#0f766e'];
 const W = 560;
@@ -12,7 +12,9 @@ const SCALE = 3; // the pad is drawn at 3x so the signature stays sharp when pri
 /** Dialog to draw a signature with mouse, pen or finger, or to upload a picture of one. */
 export function SignatureEditor() {
   const open = useEditorStore((s) => s.signatureOpen);
-  const page = useEditorStore((s) => s.currentPage);
+  const kind = useEditorStore((s) => s.signatureKind);
+  const [keep, setKeep] = useState(true);
+  const word = kind === 'initials' ? 'initials' : 'signature';
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const drawing = useRef(false);
@@ -50,23 +52,31 @@ export function SignatureEditor() {
     setEmpty(true);
   };
 
-  const insert = async () => {
-    const asset = await canvasToTrimmedAsset(canvasRef.current!, 'signature.png');
-    if (!asset) return;
-    placeAsset(asset.id, asset.width / SCALE, asset.height / SCALE, page, undefined, true, asset);
+  /** Saves the picture for next time if asked, then lets you click where it goes. */
+  const use = async (bytes: Uint8Array, width: number, height: number, mime: 'image/png' | 'image/jpeg') => {
+    const mark = keep ? await saveMark(kind, bytes, width, height, mime) : { id: '', kind, png: bytes, width, height, created: 0, mime };
     close();
+    placeSavedMark(mark);
+  };
+  const insert = async () => {
+    const asset = await canvasToTrimmedAsset(canvasRef.current!, `${word}.png`);
+    if (!asset) return;
+    URL.revokeObjectURL(asset.url);
+    await use(asset.bytes, asset.width, asset.height, 'image/png');
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="dialog" aria-modal="true" aria-label="Add signature" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="dialog" aria-modal="true" aria-label={`Add ${word}`} onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="w-full max-w-[620px] rounded-2xl bg-white p-5 shadow-float">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Add signature</h2>
+          <h2 className="text-base font-semibold text-slate-900">{kind === 'initials' ? 'New initials' : 'New signature'}</h2>
           <button type="button" aria-label="Close" onClick={close} className="rounded-md p-1 text-slate-500 hover:bg-slate-100">
             <X size={18} />
           </button>
         </div>
-        <p className="mb-2 text-xs text-slate-500">Sign in the box with your mouse, pen or finger. It will be placed on page {page + 1}, where you can move, resize and rotate it.</p>
+        <p className="mb-2 text-xs text-slate-500">
+          {kind === 'initials' ? 'Write your initials' : 'Sign'} in the box with your mouse, pen or finger. Then click on the page where it should go{kind === 'initials' ? ' (as often as you need; Esc when done)' : ''}.
+        </p>
         <div className="relative overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
           <canvas
             ref={canvasRef}
@@ -91,7 +101,7 @@ export function SignatureEditor() {
             onPointerCancel={() => (drawing.current = false)}
           />
           <div className="pointer-events-none absolute bottom-10 left-8 right-8 border-b border-slate-300" />
-          {empty && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-400">Sign here</div>}
+          {empty && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-400">{kind === 'initials' ? 'Initials here' : 'Sign here'}</div>}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5" role="group" aria-label="Ink color">
@@ -106,12 +116,15 @@ export function SignatureEditor() {
           <button type="button" onClick={clear} className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100">
             <Eraser size={14} /> Clear
           </button>
+          <label className="flex items-center gap-1.5 text-xs text-slate-600" title="Kept in this browser on this device, ready in the Sign menu">
+            <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> Save for next time
+          </label>
           <div className="ml-auto flex gap-2">
             <button type="button" onClick={() => fileRef.current?.click()} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <Upload size={15} /> Upload image
             </button>
             <button type="button" disabled={empty} onClick={insert} className="h-9 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-40">
-              Insert signature
+              {kind === 'initials' ? 'Use initials' : 'Use signature'}
             </button>
           </div>
         </div>
@@ -124,8 +137,12 @@ export function SignatureEditor() {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
-            insertImageFile(f, page, undefined, true);
-            close();
+            importImageFile(f)
+              .then((a) => {
+                URL.revokeObjectURL(a.url);
+                return use(a.bytes, a.width, a.height, a.mime);
+              })
+              .catch((err) => getState().toast(err?.message ?? 'The picture could not be used.', 'error'));
           }}
         />
       </div>

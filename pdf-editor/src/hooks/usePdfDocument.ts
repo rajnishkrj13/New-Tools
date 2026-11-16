@@ -30,7 +30,7 @@ export function checkExportable(bytes: Uint8Array) {
  * file needs one to open. Returns null when the user cancels. A file that only restricts
  * editing is unlocked without a question.
  */
-async function ensureUnlocked(name: string, bytes: Uint8Array): Promise<Uint8Array | null> {
+export async function ensureUnlocked(name: string, bytes: Uint8Array): Promise<Uint8Array | null> {
   if (!looksEncrypted(bytes)) return bytes;
   try {
     await PDFDocument.load(bytes, { updateMetadata: false });

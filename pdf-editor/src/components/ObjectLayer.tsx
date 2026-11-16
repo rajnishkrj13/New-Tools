@@ -12,7 +12,8 @@ import { MARK_OPACITY, markForArea, markShapes, marksForBox } from '../engines/T
 import { layoutTextEdit, layoutTextObject, runStyle, type TextRun } from '../engines/TextEditLayout';
 import { findPageLinks, type PageLink } from '../engines/PdfRenderer';
 import { objectBounds, shiftObject } from '../store/selectionActions';
-import type { FieldObject } from '../types/objects';
+import type { FieldObject, MarkObject } from '../types/objects';
+import { placeAt } from '../store/profileActions';
 import { cellAt, layoutTable } from '../engines/TableLayout';
 import { getState, useEditorStore } from '../store/documentStore';
 import { liftPageImage, moveObjectToPage } from '../store/imageActions';
@@ -70,6 +71,37 @@ function drawTable(context: Konva.Context, o: TableObject, skip: { row: number; 
   }
   // The cell that is being typed is shown by its text field.
   for (const cell of layout.cells) if (!(skip && skip.row === cell.row && skip.col === cell.col)) drawRuns(context, cell.runs, cell.style);
+}
+
+/** A tick, cross or dot, drawn the same way the exporter draws it. */
+function drawMark(context: Konva.Context, o: MarkObject) {
+  const c = (context as any)._context as CanvasRenderingContext2D;
+  const w = o.width;
+  const h = o.height;
+  c.globalAlpha = o.opacity;
+  if (o.mark === 'dot') {
+    c.fillStyle = o.color;
+    c.beginPath();
+    c.ellipse(w / 2, h / 2, w * 0.32, h * 0.32, 0, 0, Math.PI * 2);
+    c.fill();
+    return;
+  }
+  c.strokeStyle = o.color;
+  c.lineWidth = o.strokeWidth;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  c.beginPath();
+  if (o.mark === 'check') {
+    c.moveTo(0.12 * w, 0.55 * h);
+    c.lineTo(0.4 * w, 0.84 * h);
+    c.lineTo(0.9 * w, 0.16 * h);
+  } else {
+    c.moveTo(0.18 * w, 0.18 * h);
+    c.lineTo(0.82 * w, 0.82 * h);
+    c.moveTo(0.82 * w, 0.18 * h);
+    c.lineTo(0.18 * w, 0.82 * h);
+  }
+  c.stroke();
 }
 
 /** A new form field as it will look: a white box with its value, or a tick for a check box. */
@@ -323,6 +355,7 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
         break;
       }
       case 'note':
+      case 'place':
         return; // placed on click
       case 'rect':
       case 'ellipse':
@@ -345,6 +378,10 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
   };
 
   const onClick = (e: Konva.KonvaEventObject<Event>) => {
+    if (tool === 'place') {
+      const p = e.target.getStage()!.getRelativePointerPosition()!;
+      return placeAt(page.index, p.x, p.y);
+    }
     if (tool === 'note') {
       const s = getState();
       const p = e.target.getStage()!.getRelativePointerPosition()!;
@@ -586,6 +623,20 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
             {...props}
           />
         );
+      case 'mark':
+        return (
+          <Shape
+            key={o.id} x={o.x} y={o.y} width={o.width} height={o.height}
+            sceneFunc={(ctx) => drawMark(ctx, o)}
+            hitFunc={(ctx, shape) => {
+              ctx.beginPath();
+              ctx.rect(0, 0, shape.width(), shape.height());
+              ctx.closePath();
+              ctx.fillStrokeShape(shape);
+            }}
+            {...props}
+          />
+        );
       case 'image':
         return <ImageNode key={o.id} o={o} nodeProps={props} />;
       case 'whiteout':
@@ -652,6 +703,8 @@ export function ObjectLayer({ page }: { page: PageInfo }) {
     : selected
     ? selected.type === 'image'
       ? { anchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], keepRatio: selected.keepRatio, rotate: true }
+      : selected.type === 'mark'
+        ? { anchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], keepRatio: true, rotate: false }
       : selected.type === 'highlight' || selected.type === 'note'
         ? { anchors: [] as string[], keepRatio: false, rotate: false }
         : selected.type === 'link' || selected.type === 'field'

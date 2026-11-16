@@ -7,6 +7,8 @@ import { TabBar } from './components/TabBar';
 import { PromptDialog } from './components/PromptDialog';
 import { PrivacyDialogs } from './components/PrivacyDialogs';
 import { PageElementsDialog } from './components/PageElementsDialog';
+import { ProfileDialog } from './components/ProfileDialog';
+import { CombineDialog } from './components/CombineDialog';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
 import { SignatureEditor } from './components/SignatureEditor';
@@ -95,6 +97,8 @@ export default function App() {
       <PromptDialog />
       <PrivacyDialogs />
       <PageElementsDialog />
+      <ProfileDialog />
+      <CombineDialog />
       <ExportDialog />
       <Toasts />
       {loading && (

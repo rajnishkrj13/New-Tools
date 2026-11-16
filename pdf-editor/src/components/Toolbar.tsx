@@ -13,6 +13,7 @@ import { insertImageFile, openPdfFile } from '../hooks/usePdfDocument';
 import { getState, useEditorStore } from '../store/documentStore';
 import { openSearch } from '../store/searchActions';
 import { FileMenu } from './FileMenu';
+import { SignMenu } from './SignMenu';
 import { Link2, MessageSquare, Search, SquarePen, Stamp } from 'lucide-react';
 import { insertTable } from '../store/imageActions';
 
@@ -265,6 +266,8 @@ function ToolOptions() {
         <span className={hint}>Drag on the page to draw</span>
       </>
     );
+  } else if (tool === 'place') {
+    content = <PlaceHint />;
   } else if (tool === 'link') {
     content = <span className={hint}>Drag over the text or area that should be clickable, then type the address on the right. Links the document already has are outlined in green: click one to change or remove it.</span>;
   } else if (tool === 'note') {
@@ -291,6 +294,15 @@ function ToolOptions() {
     <div key={tool} className="flex min-h-[38px] items-center gap-3 overflow-x-auto border-t border-slate-100 px-4 py-1.5">
       {content}
     </div>
+  );
+}
+
+function PlaceHint() {
+  const p = useEditorStore((s) => s.placing);
+  return (
+    <span className="text-xs text-slate-600">
+      Click on the page to place <b>{p?.label ?? 'it'}</b>{p?.repeat ? ' — click again for more, press Esc when done' : ''}.
+    </span>
   );
 }
 
@@ -331,7 +343,7 @@ export function Toolbar() {
           <ToolButton icon={<Eraser size={18} />} label="Whiteout" active={tool === 'whiteout' || tool === 'redact'} onClick={pick(tool === 'redact' ? 'redact' : 'whiteout')} />
           <ToolButton icon={<Pencil size={18} />} label="Draw" active={tool === 'draw' || tool === 'eraser'} onClick={pick(tool === 'eraser' ? 'eraser' : 'draw')} />
           <ToolButton icon={<Table size={18} />} label="Table" title="Insert a table on the current page" onClick={() => insertTable()} />
-          <ToolButton icon={<Signature size={18} />} label="Signature" onClick={() => s.setSignatureOpen(true)} />
+          <SignMenu button={(toggle, active) => <ToolButton icon={<Signature size={18} />} label="Sign" title="Signature, initials, date, tick marks and your saved details" active={active} onClick={toggle} />} />
           <ToolButton icon={<Shapes size={18} />} label="Shapes" active={SHAPE_TOOLS.includes(tool)} onClick={pick(SHAPE_TOOLS.includes(tool) ? tool : lastShape)} />
           <ToolButton icon={<Link2 size={18} />} label="Link" title="Add a web link or a jump to a page; click an existing link to change it" active={tool === 'link'} onClick={pick('link')} />
           <ToolButton icon={<MessageSquare size={18} />} label="Comment" title="Add a sticky-note comment" active={tool === 'note'} onClick={pick('note')} />

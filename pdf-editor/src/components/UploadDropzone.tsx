@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FileText, FileUp, History, Images, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { Combine, FileText, FileUp, History, Images, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { discardSavedSessions, getSavedSessions, resumeSavedSessions, type SavedSummary } from '../hooks/useAutoSave';
 import { createFromImages } from '../hooks/useFileTools';
 import { openPdfFile } from '../hooks/usePdfDocument';
@@ -64,6 +64,9 @@ export function UploadDropzone() {
             <p className="mt-3 text-sm text-slate-500">or drop PDFs here (each opens in its own tab)</p>
             <button type="button" onClick={() => images.current?.click()} className="mt-4 flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
               <Images size={15} /> Make a PDF from pictures
+            </button>
+            <button type="button" onClick={() => getState().setCombine([])} className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
+              <Combine size={15} /> Combine several files into one PDF
             </button>
             <input
               ref={images}

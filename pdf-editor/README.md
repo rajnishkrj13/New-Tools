@@ -210,3 +210,21 @@ Libraries added for these: `tesseract.js` (Apache-2.0), `@tesseract.js-data/eng`
 
 Not covered: text inside pictures that were not OCR'd, typed-in form field values (unless
 their page is redacted), hidden layers (optional content), and the file name.
+
+## Combining, signing and filling quickly
+
+- **Combine files** (File menu, or the start screen): add several PDFs and pictures, put them
+  in order (arrows, remove) and combine them into one new document in a new tab. Locked PDFs
+  ask for their password. Form fields stay fillable. The page list's **Add PDF** also accepts
+  several files at once and adds them in the order picked.
+- **Sign** (toolbar): draw or upload a signature or initials once. With "Save for next time"
+  ticked, they appear in the Sign menu: click one, then click on the page. Initials, today's
+  date, ticks, crosses and dots keep placing on every click until you press Esc, which is handy
+  for initialling every page or ticking boxes. Pick the date format next to the date. A
+  placed mark can be resized and recoloured on the right.
+- **My details**: save your name, email, phone, company, address and any other details (Sign
+  menu → Edit). Click one to drop it onto the page as text, or use **Fill this form's fields from
+  my details** to fill the document's empty form fields. Matching is by field name, so check the
+  result; fields asking for someone else's name (father, nominee, bank and so on) are skipped.
+- All of this is kept in this browser on this device only (IndexedDB, separate from auto-save,
+  so turning auto-save off does not erase it). **Delete everything saved** in My details removes it.
