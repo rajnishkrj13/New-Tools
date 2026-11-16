@@ -228,3 +228,15 @@ their page is redacted), hidden layers (optional content), and the file name.
   result; fields asking for someone else's name (father, nominee, bank and so on) are skipped.
 - All of this is kept in this browser on this device only (IndexedDB, separate from auto-save,
   so turning auto-save off does not erase it). **Delete everything saved** in My details removes it.
+
+## Print and split
+
+- **Print** (printer button next to File, File menu, or Ctrl+P): prints the document with all
+  your edits. Pages are drawn at 200 dpi (150 dpi above 60 pages) and printed from a hidden
+  frame, so it works the same in every browser; each page prints at its own size, landscape
+  pages included. Choose printer, pages and copies in the browser's print dialog. A password
+  or print limit you set applies to the downloaded file, not to printing here.
+- **Split into several files** (File menu): every N pages, every page on its own, or by ranges
+  such as `1-3, 4-8, 9-` (commas separate the files), optionally with one more file for the
+  pages not listed. Each file keeps the edits on its pages and your protection settings;
+  several files download together in one ZIP.

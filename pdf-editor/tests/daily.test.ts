@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { PDFDocument, decodePDFRawStream } from 'pdf-lib';
 import type { EditorObject } from '../src/types/objects';
 import { exportPdf, pageInfoFromPdfLib } from '../src/engines/PdfExporter';
-import { mergePdfs } from '../src/engines/PdfTools';
+import { groupLabel, mergePdfs, splitGroups } from '../src/engines/PdfTools';
+import { pngSize, printPageCss } from '../src/hooks/usePrint';
 import { EMPTY_DETAILS, detailEntries, formatDate, matchDetailsToFields, plainFieldName, type Details } from '../src/engines/Profile';
 import { setMeasureImpl } from '../src/utils/fontUtils';
 
@@ -40,6 +41,45 @@ describe('combining files', () => {
     expect(names).toEqual(['applicant', 'reference']);
     form.getTextField('reference').setText('R-17');
     expect(form.getTextField('reference').getText()).toBe('R-17');
+  });
+});
+
+describe('splitting', () => {
+  it('cuts every N pages, the last file taking what is left', () => {
+    expect(splitGroups({ mode: 'every', size: 2 }, 5)).toEqual([[0, 1], [2, 3], [4]]);
+    expect(splitGroups({ mode: 'every', size: 1 }, 3)).toEqual([[0], [1], [2]]);
+    expect(splitGroups({ mode: 'every', size: 9 }, 3)).toEqual([[0, 1, 2]]);
+    expect(splitGroups({ mode: 'every', size: 0 }, 3)).toBeNull();
+    expect(splitGroups({ mode: 'every', size: 1.5 }, 3)).toBeNull();
+  });
+
+  it('makes one file per range, with open ends and the pages left over', () => {
+    expect(splitGroups({ mode: 'ranges', text: '1-3, 4 - 5; 8-', rest: false }, 10)).toEqual([[0, 1, 2], [3, 4], [7, 8, 9]]);
+    expect(splitGroups({ mode: 'ranges', text: '2-3', rest: true }, 6)).toEqual([[1, 2], [0, 3, 4, 5]]);
+    expect(splitGroups({ mode: 'ranges', text: '1-6', rest: true }, 6)).toEqual([[0, 1, 2, 3, 4, 5]]);
+    expect(splitGroups({ mode: 'ranges', text: '1-12', rest: false }, 10)).toBeNull();
+    expect(splitGroups({ mode: 'ranges', text: '1 3', rest: false }, 10)).toBeNull();
+    expect(splitGroups({ mode: 'ranges', text: ' , ', rest: false }, 10)).toBeNull();
+  });
+
+  it('names the files after their pages', () => {
+    expect(groupLabel([3, 4, 5], 0)).toBe('pages-4-6');
+    expect(groupLabel([8], 2)).toBe('page-9');
+    expect(groupLabel([0, 3, 4], 2)).toBe('part-3');
+  });
+});
+
+describe('printing', () => {
+  it('prints each page at its own size, landscape pages included', () => {
+    const png = new Uint8Array(24);
+    new DataView(png.buffer).setUint32(16, 1700);
+    new DataView(png.buffer).setUint32(20, 2200);
+    expect(pngSize(png)).toEqual({ width: 1700, height: 2200 });
+    // Letter portrait, Letter portrait, Letter landscape at 200 dpi.
+    const { css, classes } = printPageCss([{ width: 1700, height: 2200 }, { width: 1700, height: 2200 }, { width: 2200, height: 1700 }], 200);
+    expect(classes).toEqual(['s0', 's0', 's1']);
+    expect(css).toContain('@page s0 { size: 612pt 792pt;');
+    expect(css).toContain('@page s1 { size: 792pt 612pt;');
   });
 });
 

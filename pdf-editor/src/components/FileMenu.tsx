@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Combine, EyeOff, FileImage, FileOutput, FileText, Images, Lock, Menu, Minimize2, ScanText, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, Combine, EyeOff, Printer, Scissors, FileImage, FileOutput, FileText, Images, Lock, Menu, Minimize2, ScanText, ScanSearch, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { useEditorStore } from '../store/documentStore';
 import { createFromImages, downloadSmaller, exportImages, exportText, extractPages, recognizeText } from '../hooks/useFileTools';
 import { getState } from '../store/documentStore';
 import { openSearch } from '../store/searchActions';
+import { printDocument } from '../hooks/usePrint';
 
 /** Drop-down with the tools that work on the whole file. */
 export function FileMenu() {
@@ -59,8 +60,10 @@ export function FileMenu() {
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-11 z-50 max-h-[78vh] w-[310px] overflow-y-auto rounded-xl bg-white p-1.5 shadow-float">
+          {item(<Printer size={16} />, 'Print…  (Ctrl+P)', 'Prints the document with all your edits', printDocument)}
           {group('Pages')}
           {item(<FileOutput size={16} />, 'Extract pages…', 'Save chosen pages as a new PDF', extractPages)}
+          {item(<Scissors size={16} />, 'Split into several files…', 'Every few pages, by ranges, or one file per page', () => getState().setSplitOpen(true))}
           {group('Save in another form')}
           {item(<FileImage size={16} />, 'Pages as PNG pictures', 'Sharp, larger files; several pages come as a ZIP', () => exportImages('png'))}
           {item(<FileImage size={16} />, 'Pages as JPG pictures', 'Smaller files, good for photos and scans', () => exportImages('jpeg'))}

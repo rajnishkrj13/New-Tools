@@ -1,6 +1,6 @@
 import { recognizePage, OCR_LANGUAGES, type OcrLanguage } from '../engines/Ocr';
 import { extractPdfText, getPdfPage, renderPdfToImages } from '../engines/PdfRenderer';
-import { COMPRESS_LEVELS, imagesToPdf, parsePageRanges, zipStore, type PictureInput } from '../engines/PdfTools';
+import { COMPRESS_LEVELS, groupLabel, imagesToPdf, parsePageRanges, zipStore, type PictureInput } from '../engines/PdfTools';
 import { getOcrItems, loadTextModel, setOcrItems } from '../engines/PdfTextExtractor';
 import { getState, useEditorStore } from '../store/documentStore';
 import { askText } from '../store/promptActions';
@@ -30,6 +30,29 @@ export async function extractPages() {
   if (!bytes) return;
   downloadBytes(bytes, `${baseName()}-pages-${answer.replace(/[^\d-]+/g, '_')}.pdf`);
   getState().toast(`Saved ${pages.length} page${pages.length > 1 ? 's' : ''} as a new PDF.`, 'success');
+}
+
+/**
+ * Saves the document as several PDFs, each with the edits on its pages. One file downloads
+ * as it is; several come in one ZIP. Returns how many files were made.
+ */
+export async function splitDocument(groups: number[][]): Promise<number> {
+  const base = baseName();
+  const files: { name: string; bytes: Uint8Array }[] = [];
+  try {
+    for (const [i, pages] of groups.entries()) {
+      getState().setLoading(`Saving file ${i + 1} of ${groups.length}…`);
+      const bytes = await buildPdf(false, { pages });
+      if (!bytes) return 0;
+      files.push({ name: `${base}-${groupLabel(pages, i)}.pdf`, bytes });
+    }
+  } finally {
+    getState().setLoading(null);
+  }
+  if (files.length === 1) downloadBytes(files[0].bytes, files[0].name);
+  else downloadBytes(zipStore(files), `${base}-split.zip`, 'application/zip');
+  getState().toast(files.length === 1 ? `Saved ${files[0].name}.` : `Split into ${files.length} PDFs, saved together in one ZIP file.`, 'success');
+  return files.length;
 }
 
 export async function exportImages(format: 'png' | 'jpeg') {

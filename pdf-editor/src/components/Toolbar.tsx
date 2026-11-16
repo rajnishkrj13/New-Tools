@@ -14,7 +14,8 @@ import { getState, useEditorStore } from '../store/documentStore';
 import { openSearch } from '../store/searchActions';
 import { FileMenu } from './FileMenu';
 import { SignMenu } from './SignMenu';
-import { Link2, MessageSquare, Search, SquarePen, Stamp } from 'lucide-react';
+import { Link2, MessageSquare, Printer, Search, SquarePen, Stamp } from 'lucide-react';
+import { printDocument } from '../hooks/usePrint';
 import { insertTable } from '../store/imageActions';
 
 function ToolButton(props: { icon: React.ReactNode; label: string; active?: boolean; disabled?: boolean; onClick: () => void; title?: string }) {
@@ -370,6 +371,15 @@ export function Toolbar() {
 
         <div className="flex shrink-0 items-center gap-2">
           <FileMenu />
+          <button
+            type="button"
+            onClick={printDocument}
+            aria-label="Print"
+            title="Print (Ctrl+P)"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+          >
+            <Printer size={17} />
+          </button>
           <button
             type="button"
             onClick={applyChanges}

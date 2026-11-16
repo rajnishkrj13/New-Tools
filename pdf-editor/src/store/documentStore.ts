@@ -110,6 +110,8 @@ interface EditorState {
   /** Files waiting in the Combine dialog (null: closed). */
   combine: File[] | null;
   setCombine: (files: File[] | null) => void;
+  splitOpen: boolean;
+  setSplitOpen: (open: boolean) => void;
   toasts: Toast[];
 
   openDocument: (doc: DocumentInfo, pages: PageInfo[], bytes: Uint8Array) => void;
@@ -248,6 +250,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setProfileOpen: (profileOpen) => set({ profileOpen }),
   combine: null,
   setCombine: (combine) => set({ combine }),
+  splitOpen: false,
+  setSplitOpen: (splitOpen) => set({ splitOpen }),
   toasts: [],
 
   openDocument: (doc, pages, bytes) => {

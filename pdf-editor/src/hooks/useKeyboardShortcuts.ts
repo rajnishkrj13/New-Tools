@@ -5,6 +5,7 @@ import {
   copySelection, cutSelection, deleteSelection, duplicateSelection, hasClipboard, nudgeSelection, pasteClipboard, selectAllOnPage, selectedObjects,
 } from '../store/selectionActions';
 import { hasUnsavedWork } from './useAutoSave';
+import { printDocument } from './usePrint';
 
 const isTyping = (el: EventTarget | null) => {
   const node = el as HTMLElement | null;
@@ -33,6 +34,12 @@ export function useKeyboardShortcuts() {
         if (typing) return;
         e.preventDefault();
         s.redo();
+        return;
+      }
+      if (mod && key === 'p') {
+        // The browser would print the editor itself; print the document instead.
+        e.preventDefault();
+        printDocument();
         return;
       }
       if (mod && key === 'f') {

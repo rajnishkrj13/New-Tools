@@ -23,6 +23,47 @@ export function parsePageRanges(text: string, pageCount: number): number[] | nul
   return out;
 }
 
+// ---- split ---------------------------------------------------------------------------------------
+
+export type SplitSpec = { mode: 'every'; size: number } | { mode: 'ranges'; text: string; rest: boolean };
+
+/**
+ * Which pages go into which file (0-based). "every": groups of `size` pages. "ranges": one
+ * file per comma-separated part ("1-3, 4-8, 9-"); with `rest`, the pages no part mentions go
+ * into one more file. Returns null when the input is not valid.
+ */
+export function splitGroups(spec: SplitSpec, pageCount: number): number[][] | null {
+  if (pageCount < 1) return null;
+  if (spec.mode === 'every') {
+    if (!Number.isInteger(spec.size) || spec.size < 1) return null;
+    const out: number[][] = [];
+    for (let i = 0; i < pageCount; i += spec.size) out.push(Array.from({ length: Math.min(spec.size, pageCount - i) }, (_, k) => i + k));
+    return out;
+  }
+  const parts = spec.text.split(/[,;\n]+/).map((p) => p.trim().replace(/\s*-\s*/g, '-')).filter(Boolean);
+  if (!parts.length) return null;
+  const out: number[][] = [];
+  for (const part of parts) {
+    if (/\s/.test(part)) return null;
+    const pages = parsePageRanges(part, pageCount);
+    if (!pages) return null;
+    out.push(pages);
+  }
+  if (spec.rest) {
+    const used = new Set(out.flat());
+    const rest = Array.from({ length: pageCount }, (_, i) => i).filter((i) => !used.has(i));
+    if (rest.length) out.push(rest);
+  }
+  return out;
+}
+
+/** A short file-name label for a group of pages: "pages-4-6", "page-9", or "part-3". */
+export function groupLabel(pages: number[], index: number): string {
+  if (pages.length === 1) return `page-${pages[0] + 1}`;
+  const runs = pages.every((p, k) => k === 0 || p === pages[k - 1] + 1);
+  return runs ? `pages-${pages[0] + 1}-${pages[pages.length - 1] + 1}` : `part-${index + 1}`;
+}
+
 // ---- ZIP (stored, no compression: the pictures inside are already compressed) -------------------
 
 let crcTable: Uint32Array | null = null;

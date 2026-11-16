@@ -9,6 +9,7 @@ import { PrivacyDialogs } from './components/PrivacyDialogs';
 import { PageElementsDialog } from './components/PageElementsDialog';
 import { ProfileDialog } from './components/ProfileDialog';
 import { CombineDialog } from './components/CombineDialog';
+import { SplitDialog } from './components/SplitDialog';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
 import { SignatureEditor } from './components/SignatureEditor';
@@ -99,6 +100,7 @@ export default function App() {
       <PageElementsDialog />
       <ProfileDialog />
       <CombineDialog />
+      <SplitDialog />
       <ExportDialog />
       <Toasts />
       {loading && (

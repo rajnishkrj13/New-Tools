@@ -9,7 +9,11 @@ import { downloadBytes } from '../utils/imageUtils';
 const editedName = (name: string) => `${name.replace(/\.pdf$/i, '').replace(/-edited$/i, '')}-edited.pdf`;
 
 /** Builds the edited PDF. Returns the bytes, or null when the export failed (the error is shown). */
-export async function buildPdf(showDialog: boolean, options: { compress?: CompressLevel; pages?: number[] } = {}): Promise<Uint8Array | null> {
+export async function buildPdf(
+  showDialog: boolean,
+  /** `unlocked`: without the password protection, for printing here. */
+  options: { compress?: CompressLevel; pages?: number[]; unlocked?: boolean } = {},
+): Promise<Uint8Array | null> {
   const s = getState();
   if (!s.doc || !s.bytes) return null;
   if (s.exportState.status === 'running') return null;
@@ -61,16 +65,16 @@ export async function buildPdf(showDialog: boolean, options: { compress?: Compre
             : 'This PDF has no photos that can be made smaller; the file size is unchanged.',
       );
     }
-    if (fresh.protection) {
+    if (fresh.protection && !options.unlocked) {
       getState().setExportState({ label: 'Adding the password…' });
       result.bytes = await lockPdf(result.bytes, fresh.protection);
       const p = fresh.protection;
       result.notes.push(p.userPassword ? 'The file is protected: it only opens with the password you set.' : 'The file opens for everyone, with the restrictions you chose.');
     }
     // An extract or a compressed copy is handed to its caller; it does not replace the normal export.
-    if (options.pages || options.compress) {
+    if (options.pages || options.compress || options.unlocked) {
       getState().setExportState({ status: 'idle', dialog: false });
-      if (result.warnings.length) getState().toast(result.warnings[result.warnings.length - (fresh.protection ? 2 : 1)] ?? result.warnings[0], 'info');
+      if (result.warnings.length && !options.unlocked) getState().toast(result.warnings[result.warnings.length - (fresh.protection ? 2 : 1)] ?? result.warnings[0], 'info');
       return result.bytes;
     }
     getState().setLastExport({ bytes: result.bytes, fileName: editedName(fresh.doc!.fileName) });
