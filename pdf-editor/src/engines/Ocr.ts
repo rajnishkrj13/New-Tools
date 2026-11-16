@@ -1,6 +1,7 @@
 import type { PageInfo } from '../types/pdf';
 import type { RawTextItem } from '../types/text';
 import { getPdfPage, release, renderPage } from './PdfRenderer';
+import { detectLineStyle, styleFontName, type PagePixels, type ScanWord } from './ScanFontStyle';
 
 /**
  * Text recognition (OCR) for scanned pages, with Tesseract compiled to WebAssembly.
@@ -57,8 +58,29 @@ export function shutdownOcr() {
 }
 
 /**
+ * The page at about 300 dpi, the resolution most scanners use, for measuring the look of the
+ * printed text: at 200 dpi the feet and strokes of ordinary 10-11 pt text are only a pixel or
+ * two wide. Null when it cannot be drawn (the text then keeps the plain sans-serif style).
+ */
+async function stylePixels(page: Awaited<ReturnType<typeof getPdfPage>>, info: PageInfo): Promise<PagePixels | null> {
+  let canvas: HTMLCanvasElement | null = null;
+  try {
+    canvas = await renderPage(page, info, 300 / 72, 1).promise;
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d');
+    return ctx ? ctx.getImageData(0, 0, canvas.width, canvas.height) : null;
+  } catch {
+    return null;
+  } finally {
+    release(canvas);
+  }
+}
+
+/**
  * Recognises the text of one page and returns it word by word in view space, in the same
- * shape as text read from a PDF, so the rest of the editor can treat it the same way.
+ * shape as text read from a PDF, so the rest of the editor can treat it the same way. Each
+ * line also gets the look of its printed type (serif, sans-serif or monospace, bold, italic)
+ * as its font, so edited text is drawn to match the scan.
  */
 export async function recognizePage(info: PageInfo, lang: OcrLanguage, progress?: (fraction: number) => void): Promise<RawTextItem[]> {
   const page = await getPdfPage(info);
@@ -70,10 +92,16 @@ export async function recognizePage(info: PageInfo, lang: OcrLanguage, progress?
     const worker = await workerFor(lang);
     onProgress = progress ?? null;
     const { data } = await worker.recognize(canvas, {}, { blocks: true });
+    const pixels = await stylePixels(page, info);
+    // Word boxes are in recognition pixels; the style picture is larger.
+    const f = pixels ? pixels.width / canvas.width : 1;
     const items: RawTextItem[] = [];
     for (const block of data.blocks ?? []) {
       for (const para of block.paragraphs ?? []) {
         for (const line of para.lines ?? []) {
+          const lineWords: ScanWord[] = (line.words ?? []).map((w: any) => ({ text: String(w.text ?? '').trim(), x0: w.bbox.x0 * f, y0: w.bbox.y0 * f, x1: w.bbox.x1 * f, y1: w.bbox.y1 * f }));
+          const style = pixels ? detectLineStyle(pixels, lineWords) : null;
+          const font = style ? styleFontName(style) : { realFontName: undefined, generic: 'sans-serif' };
           const lb = line.bbox;
           const base = line.baseline ?? { x0: lb.x0, y0: lb.y1, x1: lb.x1, y1: lb.y1 };
           // The line box is tight around the ink: from the tallest letter to the lowest descender,
@@ -92,7 +120,8 @@ export async function recognizePage(info: PageInfo, lang: OcrLanguage, progress?
               baseline: baseline / k,
               fontSize,
               fontName: 'ocr',
-              generic: 'sans-serif',
+              realFontName: font.realFontName,
+              generic: font.generic,
               // The real extent of the line's ink plus a margin, so a cover hides every stroke.
               ascent: Math.max(0.8, (baseline - lb.y0) / k / fontSize + 0.1),
               descent: -Math.max(0.25, (lb.y1 - baseline) / k / fontSize + 0.1),

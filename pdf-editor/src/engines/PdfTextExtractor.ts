@@ -105,7 +105,10 @@ export function buildLines(items: RawTextItem[], pageIndex: number, key = String
     for (const it of group) {
       if (prev) {
         const gap = it.x - (prev.x + prev.width);
-        if (gap > prev.fontSize * 0.18 && !/\s$/.test(text) && !/^\s/.test(it.str)) text += ' ';
+        // Words recognised by OCR are separate words whatever the gap: slanted (italic)
+        // letters make word boxes touch or overlap.
+        const words = prev.fontName === 'ocr' && it.fontName === 'ocr';
+        if ((words || gap > prev.fontSize * 0.18) && !/\s$/.test(text) && !/^\s/.test(it.str)) text += ' ';
       }
       segments.push({ str: it.str, x: it.x, width: it.width, start: text.length });
       text += it.str;
