@@ -172,3 +172,19 @@ describe('exporter: duplicates, extracts and recognised text', () => {
     expect(stream).toMatch(/\b3 Tr\b/);
   });
 });
+
+describe('Hindi text of a scan', () => {
+  it('is written so that search and copy get exactly the recognised text back', async () => {
+    const { setBundledFontLoader } = await import('../src/engines/FontManager');
+    const noto = new Uint8Array(readFileSync(join(__dirname, '..', 'node_modules', '@expo-google-fonts', 'noto-sans', '400Regular', 'NotoSans_400Regular.ttf')));
+    setBundledFontLoader(async () => noto);
+    const scan = await imagesToPdf([{ bytes: PNG, mime: 'image/png', width: 600, height: 800 }]);
+    const info = [pageInfoFromPdfLib((await PDFDocument.load(scan)).getPage(0), 0)];
+    const lines = ['नमस्ते', 'दुनिया', 'परीक्षण', 'दस्तावेज़', 'Invoice'];
+    const word = (str: string, k: number): RawTextItem => ({ str, x: 40, baseline: 100 + k * 40, width: 160, fontSize: 18, fontName: 'ocr', generic: 'sans-serif', ascent: 0.9, descent: -0.25, angle: 0 });
+    const result = await exportPdf({ bytes: scan, pages: info, assets: {}, objects: [], ocrText: { 0: lines.map(word) } });
+    expect(result.ocrWords).toBe(lines.length);
+    const items = (await (await (await open(result.bytes)).getPage(1)).getTextContent()).items.map((i: any) => i.str.trim()).filter(Boolean);
+    expect(items).toEqual(lines);
+  });
+});

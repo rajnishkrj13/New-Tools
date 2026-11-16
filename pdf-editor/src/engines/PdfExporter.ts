@@ -164,6 +164,8 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
   const fontCache = new Map<string, PDFFont>();
   /** Bytes of fonts embedded from a file; only these can be shaped by HarfBuzz. */
   const fontFiles = new Map<PDFFont, Uint8Array>();
+  /** Parsed font files, for looking up the plain glyph of a character. */
+  const plainFaces = new Map<Uint8Array, unknown>();
   let shaper: Shaper | null = null;
   let unshaped = false;
   let rightToLeft = false;
@@ -405,6 +407,28 @@ export async function exportPdf(input: ExportInput): Promise<ExportResult> {
         const offset = pieces.length > 1 ? (run.width * measureText(run.text.slice(0, piece.start), style)) / total : 0;
         const width = pieces.length > 1 ? (run.width * measureText(piece.text, style)) / total : run.width;
         const file = fontFiles.get(piece.font);
+        // The hidden text of a scan is never seen, so it needs no shaping. Each character is
+        // written as its own plain glyph: that maps back to exactly the recognised text for
+        // search and copy (a shaped conjunct has no character of its own to map back to).
+        if (invisible && file && needsShaping(text)) {
+          const face = (plainFaces.get(file) ?? plainFaces.set(file, fontkit.create(file)).get(file)) as any;
+          const glyphs = [...text].map((ch) => face.glyphForCodePoint(ch.codePointAt(0)!)).filter((g: any) => g && g.id);
+          if (glyphs.length) {
+            const natural = (glyphs.reduce((n: number, g: any) => n + g.advanceWidth, 0) / face.unitsPerEm) * run.fontSize;
+            const tz = natural > 0 && width > 0 ? clamp((width / natural) * 100, 20, 400) : 100;
+            inView(mul(base, mul(translate(run.x + offset, run.baseline), FLIP_Y)), () =>
+              page.pushOperators(
+                beginText(),
+                setFontAndSize(fontKeyOn(page, piece.font), run.fontSize),
+                setTextRenderingMode(TextRenderingMode.Invisible),
+                setCharacterSqueeze(tz),
+                showText(PDFHexString.of(glyphs.map((g: any) => g.id.toString(16).padStart(4, '0')).join(''))),
+                endText(),
+              ),
+            );
+          }
+          continue;
+        }
         if (needsShaping(text)) {
           if (shaper && file) {
             // Draw the glyphs HarfBuzz chose, each at its own position.

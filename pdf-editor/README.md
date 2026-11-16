@@ -23,7 +23,7 @@ The production build adds a Content-Security-Policy that blocks connections to o
 
 ```bash
 npm run make-samples   # writes test-assets/sample.pdf (5 pages) and sample-images.pdf (pictures)
-npm test               # 55 tests: engines, features and file tools (ranges, ZIP, pictures to PDF, passwords, compression, duplicates, OCR layer)
+npm test               # 65 tests: engines, features, file tools, and protected PDFs built independently from the PDF specification (RC4-128, AES-128, AES-256)
 npm run typecheck
 ```
 
