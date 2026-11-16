@@ -17,8 +17,12 @@ the PDF editor from `../pdf-editor`.
   (`src/lib/gst/excel.ts`), and GSTR-2B files are read with SheetJS 0.20.3 from the SheetJS CDN
   (the npm `xlsx` 0.18 release has known security issues). Returns read in one GST tool can be
   reused in the others during the visit; members' GSTR-2B state names are kept on their account.
-- **Three kinds of visitor**: public visitors, signed-in members (bigger file limits,
-  members-only tools, saved signatures and invoice details on their account) and admins.
+- **Roles** (`src/lib/auth/roles.ts`): public visitors (no account), members (bigger file
+  limits, members-only tools, saved items on their account), **admins** (only the admin areas the
+  super admin allows: tools, users, site settings) and **super admins** (everything, plus
+  Admin → Roles & permissions, changing anyone's role and suspending admins). The first account
+  on a fresh install becomes super admin, and the site always keeps one active super admin.
+  Every admin page and action checks the role on the server.
 - **Admin panel** (`/admin`): per tool switch it on or off, make it members-only, set file limits
   for visitors and members, and switch individual features (for the PDF editor: edit text, sign,
   forms, OCR, redaction, protection, combine/split, export, print). Users (roles, suspend) and
@@ -42,8 +46,10 @@ npm run build:editor
 npm run dev
 ```
 
-Open http://localhost:3000. **The first account that signs up becomes the administrator**, so
-sign up yourself before you share the address. Without `DATABASE_URL` the site uses PGlite
+Open http://localhost:3000. **The first account that signs up becomes the super admin**, so
+sign up yourself before you share the address. If the local PGlite database is ever left
+unreadable (the dev server was killed mid-write), stop the server, delete or rename
+`.data/pglite` and start again. Without `DATABASE_URL` the site uses PGlite
 (real Postgres running inside Node) with its data in `.data/pglite`.
 
 ## Deploy to your server

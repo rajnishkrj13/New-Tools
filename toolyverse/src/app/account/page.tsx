@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { getViewer } from '@/lib/auth/session';
+import { ROLE_LABEL } from '@/lib/auth/roles';
 import { db, schema } from '@/lib/db';
 import { TOOLS, toolPath } from '@/lib/tools/registry';
 import { allToolStates } from '@/lib/tools/settings';
@@ -35,7 +36,7 @@ export default async function AccountPage() {
 
   return (
     <div className="mx-auto max-w-[920px] px-4 pt-12 sm:px-6">
-      <p className="label">{viewer.role === 'admin' ? 'Administrator' : 'Member'}</p>
+      <p className="label">{ROLE_LABEL[viewer.role]}</p>
       <h1 className="display mt-2 text-[2.6rem]">Hello, {viewer.name.split(' ')[0]}</h1>
       <p className="mt-1 text-ink-2">{viewer.email}</p>
 

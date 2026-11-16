@@ -1,7 +1,9 @@
 import { getSiteSetting } from '@/lib/site';
+import { requireArea } from '@/lib/auth/session';
 import { saveSite } from '../actions';
 
 export default async function AdminSite() {
+  await requireArea('site');
   const [signupsOpen, announcement] = await Promise.all([getSiteSetting('signupsOpen'), getSiteSetting('announcement')]);
   return (
     <div>

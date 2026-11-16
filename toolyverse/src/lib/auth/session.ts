@@ -3,12 +3,14 @@ import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { and, eq, gt } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
+import { getSiteSetting } from '@/lib/site';
 import { newToken, sha256 } from './password';
+import { asRole, canAccess, type Area, type Role } from './roles';
 
 export const SESSION_COOKIE = 'tv_session';
 const DAYS = 30;
 
-export type Viewer = { id: string; email: string; name: string; role: 'admin' | 'user' } | null;
+export type Viewer = { id: string; email: string; name: string; role: Role } | null;
 
 /** Starts a session for a user and sets the cookie. Call from a Server Action. */
 export async function createSession(userId: string) {
@@ -46,14 +48,19 @@ export const getViewer = cache(async (): Promise<Viewer> => {
     .limit(1);
   const row = rows[0];
   if (!row || row.disabled) return null;
-  return { id: row.id, email: row.email, name: row.name, role: row.role };
+  return { id: row.id, email: row.email, name: row.name, role: asRole(row.role) };
 });
 
-export async function requireAdmin() {
+/**
+ * Lets the request through only if the viewer's role may use this part of the admin panel;
+ * everyone else gets "not found". Call it in every admin page and every admin action.
+ */
+export async function requireArea(area: Area) {
   const viewer = await getViewer();
-  if (viewer?.role !== 'admin') {
+  const perms = await getSiteSetting('adminPermissions');
+  if (!viewer || !canAccess(viewer.role, area, perms)) {
     const { notFound } = await import('next/navigation');
     notFound();
   }
-  return viewer!;
+  return { viewer: viewer!, perms };
 }

@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { CATEGORIES, toolNo, toolPath, toolsIn } from '@/lib/tools/registry';
 import { allToolStates } from '@/lib/tools/settings';
+import { requireArea } from '@/lib/auth/session';
 import { resetTool, saveTool } from '../actions';
 
 export default async function AdminTools() {
+  await requireArea('tools');
   const states = await allToolStates();
   return (
     <div>

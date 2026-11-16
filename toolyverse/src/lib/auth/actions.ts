@@ -42,7 +42,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   const d = await db();
   const existing = await d.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, parsed.data.email)).limit(1);
   if (existing.length) return { error: 'An account with this email already exists. Log in instead.', fields };
-  // The very first account on a fresh install becomes the administrator.
+  // The very first account on a fresh install becomes the super admin.
   const [{ value: total }] = await d.select({ value: count() }).from(schema.users);
   const id = newId();
   await d.insert(schema.users).values({
@@ -50,7 +50,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
     email: parsed.data.email,
     name: parsed.data.name,
     passwordHash: await hashPassword(parsed.data.password),
-    role: total === 0 ? 'admin' : 'user',
+    role: total === 0 ? 'superadmin' : 'user',
   });
   await createSession(id);
   redirect(safeNext(form.get('next')));

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { count, eq, gt } from 'drizzle-orm';
+import { count, gt, inArray } from 'drizzle-orm';
 import { db, schema } from '@/lib/db';
 import { TOOLS } from '@/lib/tools/registry';
 import { allToolStates } from '@/lib/tools/settings';
@@ -10,7 +10,7 @@ async function loadStats() {
   const weekAgo = new Date(now.getTime() - 7 * 864e5);
   return Promise.all([
     d.select({ n: count() }).from(schema.users),
-    d.select({ n: count() }).from(schema.users).where(eq(schema.users.role, 'admin')),
+    d.select({ n: count() }).from(schema.users).where(inArray(schema.users.role, ['admin', 'superadmin'])),
     d.select({ n: count() }).from(schema.users).where(gt(schema.users.createdAt, weekAgo)),
     d.select({ n: count() }).from(schema.sessions).where(gt(schema.sessions.expiresAt, now)),
     allToolStates(),
@@ -23,7 +23,7 @@ export default async function AdminHome() {
   const stats: [string, number | string][] = [
     ['Users', users.n],
     ['New this week', newUsers.n],
-    ['Admins', admins.n],
+    ['Admins and super admins', admins.n],
     ['Signed-in sessions', active.n],
     ['Tools on', `${all.filter((s) => s.enabled).length} / ${TOOLS.length}`],
     ['Members-only tools', all.filter((s) => s.enabled && s.access === 'members').length],

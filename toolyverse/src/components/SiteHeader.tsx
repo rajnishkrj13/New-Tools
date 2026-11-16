@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { logout } from '@/lib/auth/actions';
 import type { Viewer } from '@/lib/auth/session';
+import { isStaff } from '@/lib/auth/roles';
 import { CATEGORIES, categoryPath } from '@/lib/tools/registry';
 import { Logo } from './Logo';
 
@@ -26,7 +27,7 @@ export function SiteHeader({ viewer, announcement }: { viewer: Viewer; announcem
         <div className="ml-auto flex items-center gap-2">
           {viewer ? (
             <>
-              {viewer.role === 'admin' && (
+              {isStaff(viewer.role) && (
                 <Link href="/admin" className="label rounded-xs border border-rule-2 px-2 py-1 !text-ink hover:border-ink">
                   Admin
                 </Link>
