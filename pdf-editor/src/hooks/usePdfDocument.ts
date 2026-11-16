@@ -8,6 +8,7 @@ import { validatePdfFile } from '../utils/validationUtils';
 import { looksEncrypted, unlockPdf, WrongPasswordError } from '../engines/PdfTools';
 import { askText } from '../store/promptActions';
 import { beginNewTab } from '../store/tabActions';
+import { sizeLimitProblem } from '../utils/embed';
 
 /** Checks in the background that the open file can also be rewritten, and says so if not. */
 export function checkExportable(bytes: Uint8Array) {
@@ -94,6 +95,8 @@ export async function openPdfBytes(name: string, bytes: Uint8Array) {
 
 export async function openPdfFile(file: File) {
   const s = getState();
+  const tooBig = sizeLimitProblem(file.name, file.size);
+  if (tooBig) return s.toast(tooBig, 'error');
   s.setLoading(`Reading ${file.name}…`);
   try {
     await openPdfBytes(file.name, new Uint8Array(await file.arrayBuffer()));

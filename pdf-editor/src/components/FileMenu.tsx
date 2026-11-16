@@ -5,6 +5,7 @@ import { createFromImages, downloadSmaller, exportImages, exportText, extractPag
 import { getState } from '../store/documentStore';
 import { openSearch } from '../store/searchActions';
 import { printDocument } from '../hooks/usePrint';
+import { feature } from '../utils/embed';
 
 /** Drop-down with the tools that work on the whole file. */
 export function FileMenu() {
@@ -60,10 +61,11 @@ export function FileMenu() {
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-11 z-50 max-h-[78vh] w-[310px] overflow-y-auto rounded-xl bg-white p-1.5 shadow-float">
-          {item(<Printer size={16} />, 'Print…  (Ctrl+P)', 'Prints the document with all your edits', printDocument)}
+          {feature('print') && item(<Printer size={16} />, 'Print…  (Ctrl+P)', 'Prints the document with all your edits', printDocument)}
           {group('Pages')}
           {item(<FileOutput size={16} />, 'Extract pages…', 'Save chosen pages as a new PDF', extractPages)}
-          {item(<Scissors size={16} />, 'Split into several files…', 'Every few pages, by ranges, or one file per page', () => getState().setSplitOpen(true))}
+          {feature('combine') && item(<Scissors size={16} />, 'Split into several files…', 'Every few pages, by ranges, or one file per page', () => getState().setSplitOpen(true))}
+          {feature('export') && <>
           {group('Save in another form')}
           {item(<FileImage size={16} />, 'Pages as PNG pictures', 'Sharp, larger files; several pages come as a ZIP', () => exportImages('png'))}
           {item(<FileImage size={16} />, 'Pages as JPG pictures', 'Smaller files, good for photos and scans', () => exportImages('jpeg'))}
@@ -71,16 +73,19 @@ export function FileMenu() {
           {group('Smaller file')}
           {item(<Minimize2 size={16} />, 'Download smaller file', 'Photos at screen quality; text and drawings unchanged', () => downloadSmaller('balanced'))}
           {item(<Minimize2 size={16} />, 'Download smallest file', 'Photos clearly reduced, for e-mail', () => downloadSmaller('small'))}
+          </>}
+          {feature('ocr') && <>
           {group('Scans')}
           {item(<ScanText size={16} />, 'Recognise text on this page (OCR)', 'Makes a scanned page searchable and editable', () => recognizeText('page'))}
           {item(<ScanText size={16} />, 'Recognise text on all scanned pages', 'Every page that has no text of its own', () => recognizeText('all'))}
+          </>}
           {group('Privacy')}
-          {item(<ScanSearch size={16} />, 'Find and redact…', 'Black out every email, phone number, ID number or word', openSearch)}
+          {feature('redact') && item(<ScanSearch size={16} />, 'Find and redact…', 'Black out every email, phone number, ID number or word', openSearch)}
           {item(<SlidersHorizontal size={16} />, edited ? 'Document properties… (changed)' : 'Document properties…', 'Title, author and the program names in the file', () => getState().setPrivacyDialog('properties'))}
-          {item(<EyeOff size={16} />, 'Remove hidden data…', 'Comments, attachments, scripts, bookmarks and more', () => getState().setPrivacyDialog('clean'))}
-          {item(<Lock size={16} />, locked ? 'Change or remove protection…' : 'Protect with a password…', 'A password to open, and limits on printing, copying and editing', () => getState().setPrivacyDialog('protect'))}
+          {feature('redact') && item(<EyeOff size={16} />, 'Remove hidden data…', 'Comments, attachments, scripts, bookmarks and more', () => getState().setPrivacyDialog('clean'))}
+          {feature('protect') && item(<Lock size={16} />, locked ? 'Change or remove protection…' : 'Protect with a password…', 'A password to open, and limits on printing, copying and editing', () => getState().setPrivacyDialog('protect'))}
           {group('New')}
-          {item(<Combine size={16} />, 'Combine files…', 'Join several PDFs and pictures into one, in the order you choose', () => getState().setCombine([]))}
+          {feature('combine') && item(<Combine size={16} />, 'Combine files…', 'Join several PDFs and pictures into one, in the order you choose', () => getState().setCombine([]))}
           {item(<Images size={16} />, 'New PDF from pictures…', 'One page per PNG, JPG or WebP picture, in a new tab', () => images.current?.click())}
         </div>
       )}

@@ -4,6 +4,7 @@ import type { PageInfo } from '../types/pdf';
 import { needsQuery, patternError, SEARCH_MODES, type SearchMode } from '../engines/TextSearch';
 import { getState, useEditorStore } from '../store/documentStore';
 import { closeSearch, redactMatches, replaceAll, replaceCurrent, runSearch, stepSearch } from '../store/searchActions';
+import { feature } from '../utils/embed';
 
 /** Find, replace and redact bar, shown over the top-right corner of the document. */
 export function SearchPanel() {
@@ -106,7 +107,7 @@ export function SearchPanel() {
           All
         </button>
       </div>
-      <div className="mt-2 rounded-lg border border-red-200 bg-red-50/60 p-2">
+      {feature('redact') && <div className="mt-2 rounded-lg border border-red-200 bg-red-50/60 p-2">
         <div className="flex items-center gap-1.5">
           <ShieldAlert size={14} className="shrink-0 text-red-600" />
           <span className="text-[11px] font-semibold text-red-800">Redact</span>
@@ -120,7 +121,7 @@ export function SearchPanel() {
         <p className="mt-1 text-[10.5px] leading-snug text-slate-600">
           Covers the matches in black. Pages with redactions become pictures when you download, and the text under the boxes is removed from the file. Check the highlighted matches first: patterns can miss or over-match.
         </p>
-      </div>
+      </div>}
     </div>
   );
 }

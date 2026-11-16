@@ -16,6 +16,7 @@ import { FileMenu } from './FileMenu';
 import { SignMenu } from './SignMenu';
 import { Link2, MessageSquare, Printer, Search, SquarePen, Stamp } from 'lucide-react';
 import { printDocument } from '../hooks/usePrint';
+import { feature } from '../utils/embed';
 import { insertTable } from '../store/imageActions';
 
 function ToolButton(props: { icon: React.ReactNode; label: string; active?: boolean; disabled?: boolean; onClick: () => void; title?: string }) {
@@ -198,7 +199,7 @@ function ToolOptions() {
           onChange={getState().setTool}
           options={[
             { value: 'whiteout', label: <><Eraser size={13} /> Whiteout</>, title: 'Cover content with a white box' },
-            { value: 'redact', label: <><EyeOff size={13} /> Secure redact</>, title: 'Permanently remove what is under the box' },
+            ...(feature('redact') ? [{ value: 'redact' as const, label: <><EyeOff size={13} /> Secure redact</>, title: 'Permanently remove what is under the box' }] : []),
           ]}
         />
         <span className={hint}>
@@ -337,18 +338,18 @@ export function Toolbar() {
           <ToolButton icon={<FolderOpen size={18} />} label="Upload PDF" onClick={() => pdfInput.current?.click()} />
           <Divider />
           <ToolButton icon={<MousePointer2 size={18} />} label="Select" active={tool === 'select'} onClick={pick('select')} />
-          <ToolButton icon={<TextCursorInput size={18} />} label="Edit Text" active={tool === 'edittext'} onClick={pick('edittext')} />
+          {feature('editText') && <ToolButton icon={<TextCursorInput size={18} />} label="Edit Text" active={tool === 'edittext'} onClick={pick('edittext')} />}
           <ToolButton icon={<Type size={18} />} label="Add Text" active={tool === 'addtext'} onClick={pick('addtext')} />
           <ToolButton icon={<Highlighter size={18} />} label="Highlight" active={tool === 'highlight'} onClick={pick('highlight')} />
           <ToolButton icon={<ImagePlus size={18} />} label="Add Image" onClick={() => imageInput.current?.click()} />
           <ToolButton icon={<Eraser size={18} />} label="Whiteout" active={tool === 'whiteout' || tool === 'redact'} onClick={pick(tool === 'redact' ? 'redact' : 'whiteout')} />
           <ToolButton icon={<Pencil size={18} />} label="Draw" active={tool === 'draw' || tool === 'eraser'} onClick={pick(tool === 'eraser' ? 'eraser' : 'draw')} />
           <ToolButton icon={<Table size={18} />} label="Table" title="Insert a table on the current page" onClick={() => insertTable()} />
-          <SignMenu button={(toggle, active) => <ToolButton icon={<Signature size={18} />} label="Sign" title="Signature, initials, date, tick marks and your saved details" active={active} onClick={toggle} />} />
+          {feature('sign') && <SignMenu button={(toggle, active) => <ToolButton icon={<Signature size={18} />} label="Sign" title="Signature, initials, date, tick marks and your saved details" active={active} onClick={toggle} />} />}
           <ToolButton icon={<Shapes size={18} />} label="Shapes" active={SHAPE_TOOLS.includes(tool)} onClick={pick(SHAPE_TOOLS.includes(tool) ? tool : lastShape)} />
           <ToolButton icon={<Link2 size={18} />} label="Link" title="Add a web link or a jump to a page; click an existing link to change it" active={tool === 'link'} onClick={pick('link')} />
           <ToolButton icon={<MessageSquare size={18} />} label="Comment" title="Add a sticky-note comment" active={tool === 'note'} onClick={pick('note')} />
-          <ToolButton icon={<SquarePen size={18} />} label="Form" title="Add a fillable text field or check box" active={tool === 'textfield' || tool === 'checkbox'} onClick={pick(tool === 'checkbox' ? 'checkbox' : 'textfield')} />
+          {feature('forms') && <ToolButton icon={<SquarePen size={18} />} label="Form" title="Add a fillable text field or check box" active={tool === 'textfield' || tool === 'checkbox'} onClick={pick(tool === 'checkbox' ? 'checkbox' : 'textfield')} />}
           <ToolButton icon={<Stamp size={18} />} label="Stamp" title="Header, footer, page numbers, watermark and stamps" onClick={() => s.setPageElementsOpen(true)} />
           <ToolButton icon={<Search size={18} />} label="Find" title="Find and replace (Ctrl+F)" onClick={openSearch} />
           <Divider />
@@ -371,15 +372,17 @@ export function Toolbar() {
 
         <div className="flex shrink-0 items-center gap-2">
           <FileMenu />
-          <button
-            type="button"
-            onClick={printDocument}
-            aria-label="Print"
-            title="Print (Ctrl+P)"
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
-          >
-            <Printer size={17} />
-          </button>
+          {feature('print') && (
+            <button
+              type="button"
+              onClick={printDocument}
+              aria-label="Print"
+              title="Print (Ctrl+P)"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
+            >
+              <Printer size={17} />
+            </button>
+          )}
           <button
             type="button"
             onClick={applyChanges}

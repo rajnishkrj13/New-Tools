@@ -1,0 +1,233 @@
+@import 'tailwindcss';
+
+/*
+ * Toolyverse: a printed tool catalogue rather than a SaaS landing page. Warm paper, ink,
+ * hairline rules, numbered entries, one vermilion signal colour and a colour per drawer.
+ */
+
+:root {
+  --paper: #f4f1ea;
+  --paper-2: #ebe6da;
+  --card: #fbfaf6;
+  --ink: #1b1915;
+  --ink-2: #47433b;
+  --ink-3: #777064;
+  --rule: #d8d0c0;
+  --rule-2: #c3b9a5;
+  --signal: #d4452a;
+  --signal-ink: #fff8f2;
+  --pdf: #c0402b;
+  --image: #2a6a8a;
+  --gst: #2c6a45;
+  --convert: #8a5d16;
+  --ok: #2c6a45;
+  --warn: #9a6a00;
+  --bad: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #15130f;
+    --paper-2: #1e1b16;
+    --card: #1a1813;
+    --ink: #ede7da;
+    --ink-2: #c4bcab;
+    --ink-3: #8f8778;
+    --rule: #332f27;
+    --rule-2: #4a4438;
+    --signal: #f0623f;
+    --signal-ink: #1b0d07;
+    --pdf: #e66a52;
+    --image: #5fa6c8;
+    --gst: #5fae7c;
+    --convert: #d39b3f;
+    --ok: #5fae7c;
+    --warn: #e0b04a;
+    --bad: #f07067;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-2: var(--rule-2);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-pdf: var(--pdf);
+  --color-image: var(--image);
+  --color-gst: var(--gst);
+  --color-convert: var(--convert);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-plex-condensed), var(--font-plex-sans), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --radius-xs: 2px;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  font-feature-settings: 'ss02';
+}
+
+::selection {
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* Small caps label used for catalogue numbers, drawer names and table heads. */
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.02;
+}
+
+/* Long-form help text on tool pages. */
+.prose-tv h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.6rem;
+  line-height: 1.15;
+  margin: 2.5rem 0 0.75rem;
+}
+.prose-tv p {
+  color: var(--ink-2);
+  margin: 0 0 1rem;
+  max-width: 68ch;
+}
+.prose-tv a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* Form controls shared by every tool. */
+.field {
+  width: 100%;
+  min-height: 2.75rem;
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  border-radius: 2px;
+  padding: 0.5rem 0.75rem;
+  color: var(--ink);
+  font: inherit;
+}
+.field:focus {
+  border-color: var(--ink);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--ink);
+}
+textarea.field {
+  min-height: 9rem;
+  line-height: 1.5;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.1rem;
+  border-radius: 2px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition: transform 0.06s ease, background 0.15s ease;
+  text-decoration: none;
+}
+.btn:hover {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--signal-ink);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--rule-2);
+}
+.btn-ghost:hover {
+  background: var(--paper-2);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* The drop area for files: a dashed "tray". */
+.tray {
+  border: 1.5px dashed var(--rule-2);
+  background: repeating-linear-gradient(-45deg, transparent 0 10px, color-mix(in oklab, var(--paper-2) 60%, transparent) 10px 11px);
+}
+.tray[data-over='true'] {
+  border-color: var(--signal);
+  background: color-mix(in oklab, var(--signal) 6%, var(--card));
+}
+
+/* Printing an invoice (or anything marked #print-area): only that part goes on paper. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body:has(#print-area) * {
+    visibility: hidden;
+  }
+  body:has(#print-area) #print-area,
+  body:has(#print-area) #print-area * {
+    visibility: visible;
+  }
+  body:has(#print-area) #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

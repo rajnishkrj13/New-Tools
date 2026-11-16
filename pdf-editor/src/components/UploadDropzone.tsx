@@ -5,6 +5,7 @@ import { discardSavedSessions, getSavedSessions, resumeSavedSessions, type Saved
 import { createFromImages } from '../hooks/useFileTools';
 import { openPdfFile } from '../hooks/usePdfDocument';
 import { getState, useEditorStore } from '../store/documentStore';
+import { feature } from '../utils/embed';
 
 const isImage = (f: File) => /^image\/(png|jpeg|webp)$/.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name);
 
@@ -65,9 +66,9 @@ export function UploadDropzone() {
             <button type="button" onClick={() => images.current?.click()} className="mt-4 flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
               <Images size={15} /> Make a PDF from pictures
             </button>
-            <button type="button" onClick={() => getState().setCombine([])} className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
+            {feature('combine') && <button type="button" onClick={() => getState().setCombine([])} className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
               <Combine size={15} /> Combine several files into one PDF
-            </button>
+            </button>}
             <input
               ref={images}
               type="file"

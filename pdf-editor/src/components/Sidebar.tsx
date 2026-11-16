@@ -6,6 +6,7 @@ import { getState, useEditorStore } from '../store/documentStore';
 import { setAutoSaveEnabled } from '../hooks/useAutoSave';
 import { deletePage, duplicatePage, insertBlankPage, insertPdfFile, insertPdfFiles, movePage, rotatePage } from '../store/pageActions';
 import { CopyPlus } from 'lucide-react';
+import { feature } from '../utils/embed';
 
 const THUMB_WIDTH = 128;
 const DRAG_TYPE = 'application/x-pdf-editor-page';
@@ -205,9 +206,11 @@ export function Sidebar() {
         <button type="button" className={addBtn} title={`Insert an empty page after page ${current + 1}`} onClick={() => insertBlankPage(current)}>
           <FilePlus2 size={13} /> Blank page
         </button>
-        <button type="button" className={addBtn} title={`Insert the pages of another PDF after page ${current + 1}`} onClick={() => pdfInput.current?.click()}>
-          <FileStack size={13} /> Add PDF
-        </button>
+        {feature('combine') && (
+          <button type="button" className={addBtn} title={`Insert the pages of another PDF after page ${current + 1}`} onClick={() => pdfInput.current?.click()}>
+            <FileStack size={13} /> Add PDF
+          </button>
+        )}
         <input
           ref={pdfInput}
           type="file"

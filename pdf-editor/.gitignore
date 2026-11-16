@@ -5,3 +5,5 @@ public/pdfjs
 test-assets/local-*
 public/ocr
 test-assets/protected
+
+dist-embed

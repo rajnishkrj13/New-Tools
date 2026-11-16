@@ -6,6 +6,7 @@ import {
 } from '../store/selectionActions';
 import { hasUnsavedWork } from './useAutoSave';
 import { printDocument } from './usePrint';
+import { feature } from '../utils/embed';
 
 const isTyping = (el: EventTarget | null) => {
   const node = el as HTMLElement | null;
@@ -39,7 +40,7 @@ export function useKeyboardShortcuts() {
       if (mod && key === 'p') {
         // The browser would print the editor itself; print the document instead.
         e.preventDefault();
-        printDocument();
+        if (feature('print')) printDocument();
         return;
       }
       if (mod && key === 'f') {

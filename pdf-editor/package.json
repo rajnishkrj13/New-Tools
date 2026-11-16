@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "node scripts/copy-pdfjs-assets.mjs",
-    "make-samples": "node scripts/make-test-pdfs.mjs"
+    "make-samples": "node scripts/make-test-pdfs.mjs",
+    "build:embed": "tsc --noEmit && vite build --base=/pdf-editor/app/ --outDir dist-embed --emptyOutDir"
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",

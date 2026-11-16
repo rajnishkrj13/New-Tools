@@ -9,6 +9,7 @@ import { validatePdfFile } from '../utils/validationUtils';
 import { getState } from './documentStore';
 import { parsePageRanges } from '../engines/PdfTools';
 import { askText } from './promptActions';
+import { sizeLimitProblem } from '../utils/embed';
 
 /**
  * Page tools: delete, rotate, move, insert a blank page, add the pages of another PDF.
@@ -110,6 +111,11 @@ export function insertBlankPage(after: number) {
 /** Adds the pages of another PDF after `after`, asking which pages when `ask` is set. Returns how many were added. */
 export async function insertPdfFile(file: File, after: number, ask = true): Promise<number> {
   const s = getState();
+  const tooBig = sizeLimitProblem(file.name, file.size);
+  if (tooBig) {
+    s.toast(tooBig, 'error');
+    return 0;
+  }
   s.setLoading(`Adding ${file.name}…`);
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());

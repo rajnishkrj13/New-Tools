@@ -19,6 +19,7 @@ import * as tabTools from './store/tabActions';
 import { initAutoSave } from './hooks/useAutoSave';
 import { loadProfile } from './store/profileActions';
 import * as profileTools from './store/profileActions';
+import { loadEmbedConfig } from './utils/embed';
 
 installBundledFonts(() => {
   invalidateLayouts();
@@ -26,18 +27,21 @@ installBundledFonts(() => {
 });
 
 initAutoSave();
-loadProfile();
 useEditorStore.subscribe((s, prev) => {
   if (s.docKey !== prev.docKey || s.activeTab !== prev.activeTab) setOcrScope(s.activeTab ?? String(s.docKey));
 });
 // {page} / {pages} / {file} in headers and footers follow the document.
 useEditorStore.subscribe((s) => setFieldContext(s.pages.length, s.doc?.fileName ?? ''));
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+// Inside Toolyverse the site's settings (features, size limits, account) are read first.
+loadEmbedConfig().finally(() => {
+  loadProfile();
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});
 
 // Development-only handle for automated tests and debugging. Not part of production builds.
 if (import.meta.env.DEV) {
