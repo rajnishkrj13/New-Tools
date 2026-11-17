@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import { InfoPage } from '@/components/InfoPage';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Privacy policy',
+export const metadata: Metadata = pageMeta({
+  title: 'Privacy Policy – Your Files Stay on Your Device',
   description: 'How Toolyverse handles your files and data: files are processed in your browser and never uploaded; accounts store only what you save.',
-  alternates: { canonical: '/privacy' },
-};
+  path: '/privacy',
+});
 
 export default function Privacy() {
   return (

@@ -11,6 +11,8 @@ export interface ToolProps {
   signedIn: boolean;
   /** PDF editor pages: the tool to open first. */
   focus?: string;
+  /** Pages made for one search: settings the tool starts with (see Tool.preset). */
+  preset?: Record<string, string>;
 }
 
 export const formatSize = (n: number) =>

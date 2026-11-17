@@ -4,15 +4,17 @@ import { JsonLd } from '@/components/JsonLd';
 import { ToolList } from '@/components/ToolList';
 import { ToolSearch } from '@/components/ToolSearch';
 import { SITE } from '@/lib/config';
+import { pageMeta } from '@/lib/seo';
 import { CATEGORIES, TOOLS, categoryPath, toolPath, toolsIn } from '@/lib/tools/registry';
 import { allToolStates } from '@/lib/tools/settings';
 
-export const metadata = {
-  title: { absolute: 'Free PDF Editor & Online Tools, No Upload | Toolyverse' },
+export const metadata = pageMeta({
+  title: 'Free PDF Editor & Online Tools, No Upload | Toolyverse',
+  absoluteTitle: true,
   description:
     'Free PDF editor that changes the text itself, plus tools to sign, merge and compress PDFs, shrink images, calculate GST and convert units. No upload.',
-  alternates: { canonical: '/' },
-};
+  path: '/',
+});
 
 export default async function Home() {
   const states = await allToolStates();

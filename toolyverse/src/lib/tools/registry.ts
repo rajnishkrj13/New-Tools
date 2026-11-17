@@ -1,4 +1,5 @@
 import { EDITOR_PAGES } from './editor-pages';
+import { LANDING_PAGES } from './landing-pages';
 
 /**
  * Every tool on Toolyverse: its address, what search engines see, the help text on its page
@@ -19,6 +20,8 @@ export interface Category {
   intro: string;
   /** Catalogue mark: two letters printed on the drawer label. */
   mark: string;
+  /** Help below the list of tools: which tool for which job. */
+  sections?: Section[];
 }
 
 export interface Feature {
@@ -58,6 +61,11 @@ export interface Tool {
   opens?: string;
   /** For the PDF editor: which tool to open first once a file is loaded. */
   focus?: 'sign' | 'addtext' | 'edittext' | 'redact' | 'stamp' | 'ocr' | 'image' | 'forms';
+  /**
+   * Settings the opened tool starts with, for pages made for one search (for example
+   * { kb: '20' } on "compress image to 20 KB"). Each tool reads the keys it knows.
+   */
+  preset?: Record<string, string>;
   /** Language of the page content when it is not English. */
   lang?: 'hi';
   /** The same page in other languages, for hreflang: { 'hi-IN': '/hindi-pdf-editor' }. */
@@ -78,7 +86,7 @@ export interface Section {
 }
 
 /** Date the catalogue's text was last revised; pages without their own date use it. */
-export const CONTENT_UPDATED = '2026-11-16';
+export const CONTENT_UPDATED = '2026-11-17';
 
 export const CATEGORIES: Category[] = [
   {
@@ -91,6 +99,27 @@ export const CATEGORIES: Category[] = [
     description: 'Edit text in a PDF, merge, split, compress, rotate and password-protect PDFs online. Free, no watermark, and your files never leave your browser.',
     intro:
       'Every PDF tool here works inside your browser. Your file is read on your own computer or phone and is never uploaded to us, which is why there is no upload wait and nothing to delete afterwards.',
+    sections: [
+      {
+        h2: 'Which PDF tool do I need?',
+        list: [
+          'Change what the PDF says: the [PDF Editor](/pdf-editor) edits existing text, adds text and images, and fills forms.',
+          'Sign it: [Sign PDF](/sign-pdf) places a drawn or uploaded signature, initials and the date.',
+          'Too big to email or upload: [Compress PDF](/compress-pdf) shrinks the photos inside it.',
+          'Several files into one: [Merge PDF](/merge-pdf); one file into several: [Split PDF](/split-pdf).',
+          'Pages sideways: [Rotate PDF](/rotate-pdf).',
+          'Photos or screenshots into a PDF: [JPG to PDF](/jpg-to-pdf) or [PNG to PDF](/png-to-pdf); the other way: [PDF to JPG](/pdf-to-jpg) or [PDF to PNG](/pdf-to-png).',
+          'Keep it private: [Protect PDF](/protect-pdf) adds a password, [Redact PDF](/redact-pdf) removes text for good.',
+          'A scan you cannot select text in: [Edit Scanned PDF](/edit-scanned-pdf) recognises the text first.',
+        ],
+      },
+      {
+        h2: 'Why nothing is uploaded',
+        body: [
+          'PDFs are often salary slips, bank statements, ID cards and contracts. Most online PDF sites copy them to their servers to work on them. Here the work happens in your browser, so the document never leaves your device and there is nothing to delete afterwards. The tools work the same on a phone, with no app to install and no watermark on the result.',
+        ],
+      },
+    ],
   },
   {
     id: 'image',
@@ -102,6 +131,25 @@ export const CATEGORIES: Category[] = [
     description: 'Compress JPG and PNG, resize to exact pixels or KB, crop and convert between JPG, PNG and WebP. Free and private: images stay on your device.',
     intro:
       'Government forms want a photo under 50 KB, email wants something smaller than 10 MB, websites want WebP. These tools do the job in the browser, with a preview before you download.',
+    sections: [
+      {
+        h2: 'Which image tool do I need?',
+        list: [
+          'Too many KB for a form: [Compress Image](/compress-image), or start from the common limits: [20 KB](/compress-image-to-20kb), [50 KB](/compress-image-to-50kb), [100 KB](/compress-image-to-100kb), [200 KB](/compress-image-to-200kb).',
+          'Exact pixels or centimetres: [Resize Image](/resize-image).',
+          'Passport shape or a square profile picture: [Passport Size Photo](/passport-size-photo) or [Crop Image](/crop-image).',
+          'Wrong file type: [PNG to JPG](/png-to-jpg), [JPG to PNG](/jpg-to-png), [WebP to JPG](/webp-to-jpg), or any of them in [Convert Image](/convert-image).',
+          'Several photos into one document: [JPG to PDF](/jpg-to-pdf).',
+        ],
+      },
+      {
+        h2: 'Photos and signatures for online application forms',
+        body: [
+          'Recruitment, university and scholarship portals usually set three rules for the photo and the signature: the file type (almost always JPG), a size in KB, and sometimes the dimensions in pixels. A common pattern is a photo of 20 to 50 KB and a signature of 10 to 20 KB, but each notification sets its own numbers, so read it first.',
+          'Work in this order for the sharpest result: crop to the face or signature, resize to the pixels asked for, then compress to the KB limit. Each step runs in your browser, so your photo and signature are never uploaded to Toolyverse.',
+        ],
+      },
+    ],
   },
   {
     id: 'gst',
@@ -109,10 +157,29 @@ export const CATEGORIES: Category[] = [
     name: 'GST tools',
     mark: 'Gs',
     blurb: 'Calculate GST, make invoices, convert GSTR-1 and 3B to Excel and reconcile them.',
-    title: 'GST Tools – Calculator, Invoice, GSTR-1/3B to Excel, Reconciliation',
+    title: 'GST Tools – Calculator, Invoice, GSTR-1/3B Excel, Reconcile',
     description: 'Free GST tools: calculator, GSTIN checker, invoice maker, GSTR-1 and GSTR-3B PDF to Excel, GSTR-1 vs 3B reconciliation and GSTR-2B merger. Files stay on your device.',
     intro:
       'Tools for the GST work that comes up every day and at year end: tax on a price, checking a GSTIN, a clean tax invoice, and turning a year of GSTR-1, GSTR-3B and GSTR-2B files into checked, reconciled Excel workbooks. Returns are read in your browser and never uploaded.',
+    sections: [
+      {
+        h2: 'Which GST tool for which job',
+        list: [
+          'Tax on a price: [GST Calculator](/gst-calculator) adds or removes GST at 5, 12, 18 or 28% and splits it into CGST and SGST or IGST.',
+          'Is this GSTIN real-looking: [GSTIN Checker](/gstin-validator) checks the format, state code, PAN and check digit, for many numbers at once.',
+          'Bill a customer: [GST Invoice Maker](/gst-invoice-generator) builds a tax invoice with HSN/SAC, the right tax split and the amount in words.',
+          'A year of returns into Excel: [GSTR-1 to Excel](/gstr1-to-excel) and [GSTR-3B to Excel](/gstr3b-to-excel) read the filed return PDFs from the portal.',
+          'Do the returns agree: [GSTR-1 vs GSTR-3B](/gstr1-vs-gstr3b) compares them month by month and table by table.',
+          'Input tax credit statements: [GSTR-2B Merger](/gstr2b-merger) joins the monthly GSTR-2B Excel files into one.',
+        ],
+      },
+      {
+        h2: 'Year-end checks before the annual return',
+        body: [
+          'Download the filed GSTR-1 and GSTR-3B PDFs for the financial year from the GST portal and drop them all into the converters at once: each return is read, checked against its own totals, and placed in its month. The GSTR-1 vs GSTR-3B report then shows where declared sales and tax paid differ, which is the first thing to settle before the annual return. Your clients’ returns are read in your browser and are never uploaded.',
+        ],
+      },
+    ],
   },
   {
     id: 'convert',
@@ -123,6 +190,24 @@ export const CATEGORIES: Category[] = [
     title: 'Free Online Converters – Units, Number to Words, Age, Text',
     description: 'Convert units, write numbers in words in Indian or international style, calculate exact age and change text case. Quick, free and ad-light.',
     intro: 'Quick answers to everyday conversion questions, with the working shown where it helps.',
+    sections: [
+      {
+        h2: 'What each converter is for',
+        list: [
+          'Measurements: [Unit Converter](/unit-converter) covers length, weight, area, volume and temperature, including Indian land units such as gaj, bigha and guntha.',
+          'Amounts for cheques and invoices: [Number to Words](/number-to-words) writes rupees and paise in lakh and crore, or in millions.',
+          'Eligibility and dates: [Age Calculator](/age-calculator) gives the exact age on any date, such as an exam’s cut-off date.',
+          'Text in the wrong case: [Case Converter](/case-converter) switches between UPPER, lower, Title and Sentence case.',
+          'Word limits: [Word Counter](/word-counter) counts words, characters and reading time as you type, in English or Hindi.',
+        ],
+      },
+      {
+        h2: 'Answers you can check',
+        body: [
+          'Each converter shows how it got the answer where that matters: which bigha size is used, how calendar months are counted in an age, which small words stay lower-case in a title. Everything is worked out in your browser as you type, so results appear at once and nothing you enter is sent anywhere.',
+        ],
+      },
+    ],
   },
 ];
 
@@ -305,8 +390,21 @@ export const TOOLS: Tool[] = [
     h1: 'Rotate PDF pages',
     intro: 'Fix scans that came out sideways. Turn every page at once or only the ones that need it, then save the PDF the right way up.',
     steps: ['Open the PDF.', 'Turn all pages, or click the arrows under a single page.', 'Download the rotated PDF.'],
-    faqs: [{ q: 'Is the rotation permanent?', a: 'Yes, the saved PDF opens with the pages turned in every PDF reader.' }],
+    faqs: [{ q: 'Is the rotation permanent?', a: 'Yes, the saved PDF opens with the pages turned in every PDF reader.' }, { q: 'Can I rotate just one page?', a: 'Yes. Use the arrows under that page; the other pages stay as they are.' }],
     limits: { publicMb: 25, memberMb: 100 },
+    sections: [
+      {
+        h2: 'Turning one page or the whole document',
+        list: [
+          'All pages: Left, Right or 180° at the top turns every page together, for a scan fed in the wrong way round.',
+          'Single pages: the arrows under a thumbnail turn only that page, for a landscape table inside a portrait report.',
+          'Pages already saved sideways: the turn is added to the page’s current rotation, so they come back upright.',
+        ],
+        body: [
+          'The pages are not redrawn: the PDF records the new orientation, so text stays selectable and nothing loses quality. To delete or reorder pages as well, open the file in the [PDF Editor](/pdf-editor), or take pages out with [Split PDF](/split-pdf).',
+        ],
+      },
+    ],
     related: ['pdf-editor', 'split-pdf', 'merge-pdf'],
     keywords: ['rotate pdf', 'turn pdf pages', 'rotate pdf pages and save'],
   },
@@ -321,8 +419,20 @@ export const TOOLS: Tool[] = [
     h1: 'Convert images to PDF',
     intro: 'Photographed documents, receipts or certificates become one tidy PDF. Pages are A4 at most and each picture fills its page.',
     steps: ['Add your images.', 'Reorder them.', 'Create the PDF and download it.'],
-    faqs: [{ q: 'Which formats can I use?', a: 'JPG, PNG and WebP. HEIC photos from iPhones should be shared as JPG first (iPhone does this when you choose "Most compatible").' }],
+    faqs: [{ q: 'Which formats can I use?', a: 'JPG, PNG and WebP. HEIC photos from iPhones should be shared as JPG first (iPhone does this when you choose "Most compatible").' }, { q: 'Is there a watermark or a page limit?', a: 'No watermark, and each image you add becomes one page.' }],
     limits: { publicMb: 20, memberMb: 60 },
+    sections: [
+      {
+        h2: 'Making one document from phone photos',
+        list: [
+          'Order: the first image becomes page 1; move images up or down with the arrows before creating the PDF.',
+          'Upright pages: photos taken with the phone turned are straightened the way the camera recorded them.',
+          'Page size: pages are at most A4 and each picture fills its page without being stretched.',
+          'Upload limits: shrink the photos first with [Compress Image](/compress-image), or the finished PDF with [Compress PDF](/compress-pdf).',
+        ],
+        body: ['Screenshots and PNG files work the same way; see [PNG to PDF](/png-to-pdf). To add these pages to an existing PDF, create the PDF here and join the two with [Merge PDF](/merge-pdf).'],
+      },
+    ],
     related: ['merge-pdf', 'compress-image', 'pdf-to-jpg'],
     keywords: ['jpg to pdf', 'image to pdf', 'png to pdf', 'photo to pdf'],
   },
@@ -337,8 +447,19 @@ export const TOOLS: Tool[] = [
     h1: 'Convert PDF pages to images',
     intro: 'Useful for sharing a page on WhatsApp, putting a page into a presentation, or uploading a document where only images are accepted.',
     steps: ['Open the PDF.', 'Choose JPG or PNG and a resolution.', 'Download one image, or a ZIP for several pages.'],
-    faqs: [{ q: 'Which resolution should I choose?', a: '150 dpi is right for screens and messages; 300 dpi for printing.' }],
+    faqs: [{ q: 'Which resolution should I choose?', a: '150 dpi is right for screens and messages; 300 dpi for printing.' }, { q: 'Can I convert only one page?', a: 'Take that page out with [Split PDF](/split-pdf) first, then convert it; a single page downloads as one image.' }],
     limits: { publicMb: 25, memberMb: 100 },
+    sections: [
+      {
+        h2: 'Choosing the format and resolution',
+        list: [
+          'JPG: the smallest files; right for scanned pages and photos you send on WhatsApp or by email.',
+          'PNG: perfectly sharp text and lines; right for slides and documents. See [PDF to PNG](/pdf-to-png).',
+          '96 dpi: quick previews. 150 dpi: screens and messages. 300 dpi: printing and zooming in.',
+        ],
+        body: ['A PDF with several pages comes back as one ZIP with an image per page, named by page number. To convert only a few pages, take them out first with [Split PDF](/split-pdf).'],
+      },
+    ],
     related: ['jpg-to-pdf', 'compress-image', 'split-pdf'],
     keywords: ['pdf to jpg', 'pdf to image', 'pdf to png', 'convert pdf to jpg'],
   },
@@ -358,6 +479,17 @@ export const TOOLS: Tool[] = [
       { q: 'Is the password sent to Toolyverse?', a: 'No. The encryption happens in your browser.' },
     ],
     limits: { publicMb: 25, memberMb: 100 },
+    sections: [
+      {
+        h2: 'What the protection does',
+        list: [
+          'Password to open: nobody can read the file without it. Right for salary slips, bank statements, ID copies and contracts.',
+          'No printing or no copying: optional extra limits for people who do open it. Most PDF readers respect them.',
+          'AES-256 encryption: the strongest standard PDF encryption, opened by Acrobat, browsers and phone PDF apps.',
+        ],
+        body: ['Keep the password safe: it is used only on your device and never sent to us, so a lost password cannot be recovered by anyone. To take the password off a PDF you can open, load it in the [PDF Editor](/pdf-editor) and download it again.'],
+      },
+    ],
     related: ['pdf-editor', 'compress-pdf', 'merge-pdf'],
     keywords: ['protect pdf', 'password protect pdf', 'encrypt pdf', 'lock pdf'],
   },
@@ -393,8 +525,19 @@ export const TOOLS: Tool[] = [
     h1: 'Resize an image',
     intro: 'Make a photo exactly 600 × 600 pixels, 3.5 × 4.5 cm for a passport-style photo, or half its size, with a live preview.',
     steps: ['Choose an image.', 'Enter the new size in pixels, cm or percent.', 'Download the resized image.'],
-    faqs: [{ q: 'How do I keep the photo from stretching?', a: 'Leave "Keep proportions" on; changing the width then sets the height for you.' }],
+    faqs: [{ q: 'How do I keep the photo from stretching?', a: 'Leave "Keep proportions" on; changing the width then sets the height for you.' }, { q: 'How do I resize a photo to a KB size?', a: 'Resize to the pixels first, then use [Compress Image](/compress-image) with the KB limit, for example [50 KB](/compress-image-to-50kb).' }],
     limits: { publicMb: 15, memberMb: 50 },
+    sections: [
+      {
+        h2: 'Pixels, centimetres or percent',
+        list: [
+          'Pixels: what online forms and websites ask for, for example 200 × 230 for a form photo.',
+          'Centimetres: for prints, such as 3.5 × 4.5 cm for a passport-size photo, at the DPI you set (300 for photo prints). Common print sizes are one click away.',
+          'Percent: make a photo half or a quarter of its size in one step.',
+        ],
+        body: ['Resizing changes the pixels, not directly the KB. If the form also gives a maximum file size, finish with [Compress Image](/compress-image). Enlarging a small picture cannot add detail, so start from the biggest original you have.'],
+      },
+    ],
     related: ['compress-image', 'crop-image', 'convert-image'],
     keywords: ['resize image', 'image resizer', 'resize photo in cm', 'change image size'],
   },
@@ -409,8 +552,21 @@ export const TOOLS: Tool[] = [
     h1: 'Crop an image',
     intro: 'Drag the frame over the part you want to keep. Lock it to a ratio for profile pictures, banners or passport photos.',
     steps: ['Choose an image.', 'Drag the frame and pick a ratio if needed.', 'Download the cropped image.'],
-    faqs: [{ q: 'Does cropping reduce quality?', a: 'No, the kept part is saved at its original resolution.' }],
+    faqs: [{ q: 'Does cropping reduce quality?', a: 'No, the kept part is saved at its original resolution.' }, { q: 'Can I crop on my phone?', a: 'Yes. Move the frame and its corners with your finger.' }],
     limits: { publicMb: 15, memberMb: 50 },
+    sections: [
+      {
+        h2: 'Which ratio for what',
+        list: [
+          '1:1: profile pictures for WhatsApp, Instagram and LinkedIn.',
+          '4:3 and 3:4: standard photo prints and most phone photos.',
+          '16:9: YouTube thumbnails, banners and slides.',
+          'Passport 35×45: Indian passport-size photos; see [Passport Size Photo](/passport-size-photo).',
+          'Free: any shape you drag.',
+        ],
+        body: ['Drag inside the frame to move it and drag a corner to resize it; with a ratio chosen the shape stays fixed. Rotate 90° first if the photo is sideways. The kept part is saved at full resolution, so [resize](/resize-image) or [compress](/compress-image) it afterwards if a form needs a smaller file.'],
+      },
+    ],
     related: ['resize-image', 'compress-image', 'convert-image'],
     keywords: ['crop image', 'crop photo online', 'image cropper'],
   },
@@ -425,8 +581,19 @@ export const TOOLS: Tool[] = [
     h1: 'Convert image format',
     intro: 'Turn WebP downloads into JPG, screenshots into PNG, or photos into WebP for a faster website. Several images at once come back in one ZIP.',
     steps: ['Add one or more images.', 'Choose the format and quality.', 'Download.'],
-    faqs: [{ q: 'What happens to transparency when converting to JPG?', a: 'JPG has no transparency, so transparent areas are filled with the background colour you pick (white by default).' }],
+    faqs: [{ q: 'What happens to transparency when converting to JPG?', a: 'JPG has no transparency, so transparent areas are filled with the background colour you pick (white by default).' }, { q: 'Can I convert many images at once?', a: 'Yes. Add them all; they come back together in one ZIP file.' }],
     limits: { publicMb: 15, memberMb: 50 },
+    sections: [
+      {
+        h2: 'Which format to choose',
+        list: [
+          'JPG: photos for forms, email and printing; accepted everywhere.',
+          'PNG: screenshots, logos and anything with sharp edges or a transparent background.',
+          'WebP: pictures for your own website; about a quarter smaller than JPG at the same quality.',
+        ],
+        body: ['The common conversions have their own pages: [PNG to JPG](/png-to-jpg), [JPG to PNG](/jpg-to-png) and [WebP to JPG](/webp-to-jpg). The converter also reads GIF, BMP and AVIF files.'],
+      },
+    ],
     related: ['compress-image', 'resize-image', 'jpg-to-pdf'],
     keywords: ['webp to jpg', 'png to jpg', 'jpg to png', 'image converter'],
   },
@@ -522,7 +689,7 @@ export const TOOLS: Tool[] = [
     no: 22,
     name: 'GSTR-3B to Excel',
     short: 'Many GSTR-3B PDFs into one Excel: tax, ITC and cash paid',
-    title: 'GSTR-3B PDF to Excel – Bulk Convert, ITC and Tax Paid Month-wise',
+    title: 'GSTR-3B PDF to Excel – Bulk Convert, ITC & Tax Paid Monthly',
     description: 'Convert GSTR-3B PDFs into one Excel: outward tax, ITC, interest and tax paid in cash, month-wise per GSTIN. Each return is checked. Free and private.',
     h1: 'GSTR-3B PDFs to Excel',
     intro:
@@ -606,7 +773,19 @@ export const TOOLS: Tool[] = [
     h1: 'Unit converter',
     intro: 'Type a value in any box and every other unit updates. Indian land units (gaj, bigha, guntha) are included with the values most commonly used; bigha varies by state, so its size is shown.',
     steps: ['Choose what you are measuring.', 'Type a number in any unit.', 'Read the others, or copy one.'],
-    faqs: [{ q: 'How big is a bigha?', a: 'It differs by state. The converter uses 1,600 square yards (about 0.33 acre), common in Rajasthan and Punjab, and tells you so.' }],
+    faqs: [{ q: 'How big is a bigha?', a: 'It differs by state. The converter uses 1,600 square yards (about 0.33 acre), common in Rajasthan and Punjab, and tells you so.' }, { q: 'How many square feet are in a gaj?', a: 'One square gaj (square yard) is 9 square feet.' }],
+    sections: [
+      {
+        h2: 'Indian land measurement',
+        list: [
+          'Gaj: one square yard (about 0.836 square metre); plot sizes in north India are usually given in gaj.',
+          'Guntha: 121 square yards, common in Maharashtra, Gujarat and Karnataka; 40 guntha make an acre.',
+          'Bigha: differs from state to state. The converter uses 1,600 square yards and shows this next to the result.',
+          'Acre and hectare: one hectare is about 2.47 acres.',
+        ],
+        body: ['Before buying or selling land, confirm the local value of bigha or other regional units with the land records office, since the same name can mean quite different areas in neighbouring districts.'],
+      },
+    ],
     related: ['number-to-words', 'age-calculator', 'case-converter'],
     keywords: ['unit converter', 'cm to inches', 'kg to pounds', 'acre to bigha'],
   },
@@ -621,7 +800,19 @@ export const TOOLS: Tool[] = [
     h1: 'Write a number in words',
     intro: 'For cheques, invoices and agreements: 12,34,567.50 becomes "Rupees Twelve Lakh Thirty-Four Thousand Five Hundred Sixty-Seven and Fifty Paise Only".',
     steps: ['Type the number.', 'Choose Indian or international style, and rupees if you need them.', 'Copy the words.'],
-    faqs: [{ q: 'What is the largest number it handles?', a: 'Up to 99,99,99,99,99,99,999 in Indian style (99 lakh crore and more) and up to the trillions in international style.' }],
+    faqs: [{ q: 'What is the largest number it handles?', a: 'Up to 99,99,99,99,99,99,999 in Indian style (99 lakh crore and more) and up to the trillions in international style.' }, { q: 'Is it written lakh or lac?', a: 'Lakh, the spelling used by the Reserve Bank of India and in official documents.' }],
+    sections: [
+      {
+        h2: 'Writing the amount on a cheque',
+        list: [
+          'Indian style: lakh and crore, as banks expect: 1,50,000 is One Lakh Fifty Thousand.',
+          'Paise: decimals add "and Fifty Paise" after the rupees.',
+          '"Only" at the end: closes the amount so nothing can be added after it.',
+          'International style: million and billion, for documents for clients abroad.',
+        ],
+        body: ['Choose Title case, CAPITALS or lower case to match the document. The [GST Invoice Maker](/gst-invoice-generator) writes the invoice total in words for you.'],
+      },
+    ],
     related: ['gst-invoice-generator', 'gst-calculator', 'unit-converter'],
     keywords: ['number to words', 'amount in words', 'rupees in words', 'number to words indian'],
   },
@@ -636,7 +827,16 @@ export const TOOLS: Tool[] = [
     h1: 'Age calculator',
     intro: 'Work out an age on a particular date (for example the cut-off date of an exam), or the time between any two dates.',
     steps: ['Enter the date of birth.', 'Change "age on" if you need a date other than today.', 'Read years, months, days and the totals.'],
-    faqs: [{ q: 'How are months counted?', a: 'As calendar months: from 15 January to 15 February is one month, whatever the number of days.' }],
+    faqs: [{ q: 'How are months counted?', a: 'As calendar months: from 15 January to 15 February is one month, whatever the number of days.' }, { q: 'Are leap years counted?', a: 'Yes. Days are counted on the real calendar, including 29 February.' }],
+    sections: [
+      {
+        h2: 'Age on an exam’s cut-off date',
+        body: [
+          'Recruitment and admission notices set the age limit on a particular date, often the first day of a month in the exam year. Enter your date of birth and set "age on" to that date to see exactly how old you will be then, in years, months and days.',
+          'It works for any two dates: a notice period, the length of a loan, or the days left until a deadline. The total in days and the next birthday are shown too.',
+        ],
+      },
+    ],
     related: ['unit-converter', 'number-to-words'],
     keywords: ['age calculator', 'calculate age from date of birth', 'date difference'],
   },
@@ -651,7 +851,20 @@ export const TOOLS: Tool[] = [
     h1: 'Change text case',
     intro: 'Paste text and switch it between cases without retyping. Useful for headings, spreadsheets and text copied from PDFs that arrived in capitals.',
     steps: ['Paste your text.', 'Click the case you want.', 'Copy the result.'],
-    faqs: [{ q: 'Does Title Case keep short words lower-case?', a: 'Yes: a, an, the, and, of, in and similar words stay lower-case unless they start the title.' }],
+    faqs: [{ q: 'Does Title Case keep short words lower-case?', a: 'Yes: a, an, the, and, of, in and similar words stay lower-case unless they start the title.' }, { q: 'Is my text saved anywhere?', a: 'No. The text is changed in your browser and is not sent to us.' }],
+    sections: [
+      {
+        h2: 'Which case for what',
+        list: [
+          'Sentence case: normal writing, for text that arrived in capitals.',
+          'Title Case: headings and the names of books, reports and courses.',
+          'UPPERCASE: form fields and labels that must be in capitals.',
+          'lowercase: email addresses and user names.',
+          'camelCase: names in programming code.',
+        ],
+        body: ['Extra spaces and broken lines, common in text copied from PDFs, can be cleaned in the same step. Count the result with the [Word Counter](/word-counter).'],
+      },
+    ],
     related: ['word-counter', 'number-to-words'],
     keywords: ['case converter', 'uppercase to lowercase', 'title case converter'],
   },
@@ -666,14 +879,27 @@ export const TOOLS: Tool[] = [
     h1: 'Count words and characters',
     intro: 'Type or paste text to see its length as you write: handy for essays, social posts, meta descriptions and application forms with word limits.',
     steps: ['Type or paste text.', 'Read the counts as they update.'],
-    faqs: [{ q: 'Does it count Hindi words correctly?', a: 'Yes, words are counted by spaces and punctuation in any script, and characters are counted as you see them.' }],
+    faqs: [{ q: 'Does it count Hindi words correctly?', a: 'Yes, words are counted by spaces and punctuation in any script, and characters are counted as you see them.' }, { q: 'Are spaces counted as characters?', a: 'Both totals are shown: characters with spaces and without.' }],
+    sections: [
+      {
+        h2: 'Common limits to check against',
+        list: [
+          'Meta description: about 150 to 160 characters before search engines cut it off.',
+          'Post on X: 280 characters.',
+          'Essays and statements of purpose: often 500 to 1,000 words; check the instructions.',
+          'Application form answers: many count characters including spaces.',
+        ],
+        body: ['Reading time assumes 220 words a minute, so a 1,000-word article takes about four and a half minutes; speaking time assumes 140 words a minute, handy for timing a speech.'],
+      },
+    ],
     related: ['case-converter'],
     keywords: ['word counter', 'character counter', 'count words online'],
   },
 ];
 
-// Landing pages for each PDF editor search intent (sign, fill forms, OCR, redact...).
-TOOLS.push(...EDITOR_PAGES);
+// Landing pages for each PDF editor search intent (sign, fill forms, OCR, redact...), and for
+// the exact searches people make for the other tools (compress to 20 KB, PNG to JPG...).
+TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES);
 
 export const toolBySlug = new Map(TOOLS.map((t) => [t.slug, t]));
 export const categoryById = new Map(CATEGORIES.map((c) => [c.id, c]));

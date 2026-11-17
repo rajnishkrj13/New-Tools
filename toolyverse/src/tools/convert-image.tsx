@@ -7,7 +7,10 @@ import { Bench, Field, FileDrop, Notice, Segmented, Spinner, baseName, download,
 
 export default function ConvertImage(props: ToolProps) {
   const [files, setFiles] = useState<File[]>([]);
-  const [type, setType] = useState<OutType>('image/jpeg');
+  const [type, setType] = useState<OutType>(() => {
+    const to = props.preset?.to;
+    return to === 'png' ? 'image/png' : to === 'webp' ? 'image/webp' : 'image/jpeg';
+  });
   const [quality, setQuality] = useState(90);
   const [bg, setBg] = useState('#ffffff');
   const [busy, setBusy] = useState(false);

@@ -15,7 +15,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = new Date(CONTENT_UPDATED);
   const abs = (p: string) => `${SITE.url}${p}`;
   return [
-    { url: abs('/'), lastModified: site, changeFrequency: 'weekly', priority: 1 },
+    // The home page's canonical address has no trailing slash; the sitemap uses the same one.
+    { url: SITE.url, lastModified: site, changeFrequency: 'weekly', priority: 1 },
     ...CATEGORIES.map((c) => ({ url: abs(categoryPath(c)), lastModified: site, changeFrequency: 'weekly' as const, priority: 0.8 })),
     ...TOOLS.filter((t) => states.get(t.slug)?.enabled).map((t) => ({
       url: abs(toolPath(t)),

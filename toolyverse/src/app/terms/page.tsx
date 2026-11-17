@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
 import { InfoPage } from '@/components/InfoPage';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = { title: 'Terms of use', description: 'The terms for using Toolyverse tools.', alternates: { canonical: '/terms' } };
+export const metadata: Metadata = pageMeta({
+  title: 'Terms of Use – Toolyverse Free Online Tools',
+  description: 'The terms for using Toolyverse: free tools for PDFs, images, GST and conversions that run in your browser, accounts, liability and changes.',
+  path: '/terms',
+});
 
 export default function Terms() {
   return (

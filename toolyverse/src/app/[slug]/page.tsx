@@ -109,6 +109,11 @@ async function CategoryPage({ cat }: { cat: Category }) {
       <div className="mt-8">
         <ToolList tools={tools} members={members} />
       </div>
+      {cat.sections && (
+        <div className="prose-tv mt-12 max-w-[760px]">
+          <Sections sections={cat.sections} />
+        </div>
+      )}
     </div>
   );
 }
@@ -187,7 +192,7 @@ async function ToolPage({ tool }: { tool: Tool }) {
             </div>
           </div>
         ) : (
-          <ToolHost slug={runs} focus={tool.focus} features={state.features} maxMb={access.maxMb} memberMaxMb={access.memberMaxMb} signedIn={!!viewer} />
+          <ToolHost slug={runs} focus={tool.focus} preset={tool.preset} features={state.features} maxMb={access.maxMb} memberMaxMb={access.memberMaxMb} signedIn={!!viewer} />
         )}
       </section>
 

@@ -1,16 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InfoPage } from '@/components/InfoPage';
+import { JsonLd } from '@/components/JsonLd';
+import { SITE } from '@/lib/config';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'About',
+export const metadata: Metadata = pageMeta({
+  title: 'About – Free Tools That Run in Your Browser',
   description: 'Toolyverse is a set of free tools for PDFs, images, GST and conversions that run in your browser, so your files stay on your device.',
-  alternates: { canonical: '/about' },
-};
+  path: '/about',
+});
 
 export default function About() {
   return (
     <InfoPage label="About" title="Why Toolyverse exists">
+      <JsonLd data={{ '@context': 'https://schema.org', '@type': 'AboutPage', name: 'About Toolyverse', url: `${SITE.url}/about`, about: { '@id': `${SITE.url}/#org` } }} />
       <p>
         Most everyday file jobs are small: shrink a photo for a form, join two PDFs, fix a word in a document, work out the GST on a quote. Most websites that do them
         want you to upload your files first, wait, and trust them to delete what they received.

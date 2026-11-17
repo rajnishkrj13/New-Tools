@@ -9,7 +9,7 @@ import { usePdfFile } from './usePdfFile';
 
 export default function PdfToJpg(props: ToolProps) {
   const pdf = usePdfFile();
-  const [format, setFormat] = useState<'image/jpeg' | 'image/png'>('image/jpeg');
+  const [format, setFormat] = useState<'image/jpeg' | 'image/png'>(props.preset?.format === 'png' ? 'image/png' : 'image/jpeg');
   const [dpi, setDpi] = useState<'96' | '150' | '300'>('150');
   const [busy, setBusy] = useState('');
   const [done, setDone] = useState<string | null>(null);

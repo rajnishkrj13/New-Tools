@@ -12,7 +12,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "build:editor": "npm --prefix ../pdf-editor run build:embed"
+    "build:editor": "npm --prefix ../pdf-editor run build:embed",
+    "indexnow": "node scripts/indexnow.mjs"
   },
   "dependencies": {
     "@cantoo/pdf-lib": "^2.11.1",

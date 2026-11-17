@@ -10,7 +10,7 @@ type Mode = 'target' | 'quality';
 export default function CompressImage(props: ToolProps) {
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<Mode>('target');
-  const [kb, setKb] = useState('50');
+  const [kb, setKb] = useState(() => (Number(props.preset?.kb) > 0 ? String(Number(props.preset?.kb)) : '50'));
   const [quality, setQuality] = useState(70);
   const [format, setFormat] = useState<Exclude<OutType, 'image/png'>>('image/jpeg');
   const [shrink, setShrink] = useState(true);

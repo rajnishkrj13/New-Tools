@@ -19,7 +19,8 @@ export default function CropImage(props: ToolProps) {
   const [img, setImg] = useState<ImageBitmap | HTMLCanvasElement | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [rect, setRect] = useState<Rect>({ x: 0, y: 0, w: 0, h: 0 });
-  const [ratio, setRatio] = useState<number | null>(null);
+  // Pages made for one job can start locked to a ratio (the passport photo page: 35 × 45 mm).
+  const [ratio, setRatio] = useState<number | null>(() => RATIOS.find((r) => r.label.toLowerCase().startsWith(props.preset?.ratio ?? '-'))?.r ?? null);
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ mode: string; sx: number; sy: number; start: Rect } | null>(null);
@@ -35,15 +36,24 @@ export default function CropImage(props: ToolProps) {
       return URL.createObjectURL(blob);
     });
     const inset = 0.1;
-    setRect({ x: src.width * inset, y: src.height * inset, w: src.width * (1 - 2 * inset), h: src.height * (1 - 2 * inset) });
+    let w = src.width * (1 - 2 * inset);
+    let h = src.height * (1 - 2 * inset);
+    // With a ratio chosen, the frame starts as the largest centred area of that shape.
+    if (ratio) {
+      if (w / h > ratio) w = h * ratio;
+      else h = w / ratio;
+    }
+    setRect({ x: (src.width - w) / 2, y: (src.height - h) / 2, w, h });
   };
 
+  // Load only when another photo is chosen, framing it with the ratio chosen at that moment;
+  // changing the ratio later reshapes the frame instead (applyRatio), without reloading.
   useEffect(() => {
     if (!file) return;
     loadBitmap(file)
       .then(show)
       .catch((e) => setError(e.message));
-  }, [file]);
+  }, [file]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fit = (r: Rect, keepRatio: number | null): Rect => {
     let { x, y, w, h } = r;
