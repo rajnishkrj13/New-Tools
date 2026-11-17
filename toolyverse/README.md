@@ -59,10 +59,10 @@ npm run dev
 ```
 
 Open http://localhost:3000. **The first account that signs up becomes the super admin**, so
-sign up yourself before you share the address. If the local PGlite database is ever left
-unreadable (the dev server was killed mid-write), stop the server, delete or rename
-`.data/pglite` and start again. Without `DATABASE_URL` the site uses PGlite
-(real Postgres running inside Node) with its data in `.data/pglite`.
+sign up yourself before you share the address. Without `DATABASE_URL` the site uses PGlite
+(real Postgres running inside Node) in memory, saved a few seconds after each change to
+`.data/pglite.tar.gz` (written to a temporary file, then swapped in), so stopping or killing the
+dev server at any moment cannot corrupt it. Delete that file to start with an empty database.
 
 ## Deploy to your server
 

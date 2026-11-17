@@ -1,0 +1,3 @@
+# Build caches created at the repository root by the shared Turbopack setup
+.next/
+node_modules/

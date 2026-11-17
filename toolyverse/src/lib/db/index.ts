@@ -4,8 +4,8 @@ import * as schema from './schema';
 
 /**
  * The database. With DATABASE_URL set to a postgres:// address it connects to that server;
- * without it (development) it runs PGlite, the real Postgres engine embedded in Node, with its
- * files in ./.data/pglite. Migrations from ./drizzle are applied once on first use.
+ * without it (development) it runs PGlite, the real Postgres engine embedded in Node, saved to
+ * ./.data/pglite.tar.gz. Migrations from ./drizzle are applied once on first use.
  */
 
 type Db = Awaited<ReturnType<typeof connect>>;
@@ -22,34 +22,83 @@ async function connect() {
     await migrate(db, { migrationsFolder });
     return db as unknown as ReturnType<typeof import('drizzle-orm/node-postgres').drizzle<typeof schema>>;
   }
-  const { PGlite } = await import('@electric-sql/pglite');
   const { drizzle } = await import('drizzle-orm/pglite');
   const { migrate } = await import('drizzle-orm/pglite/migrator');
-  const dir = url?.startsWith('pglite:') ? url.slice(7) : path.join(process.cwd(), '.data', 'pglite');
-  const { mkdirSync } = await import('node:fs');
-  mkdirSync(path.dirname(dir), { recursive: true });
-  const client = new PGlite(dir);
-  try {
-    await client.waitReady;
-  } catch (e) {
-    // Development only: a PGlite folder can be left unreadable when the dev server is killed
-    // mid-write. It cannot be moved while this process holds it, so say how to recover.
-    throw new Error(
-      `The local development database in ${dir} could not be opened (${(e as Error).message}). ` +
-        'Stop the dev server, rename or delete that folder, and start again; then sign up again (the first account becomes super admin).',
-    );
-  }
-  // Close cleanly when the dev server stops, so the files are not left half-written.
-  const g2 = globalThis as unknown as { __tvPgliteClose?: boolean };
-  if (!g2.__tvPgliteClose) {
-    g2.__tvPgliteClose = true;
-    // Listening for a signal replaces Node's default exit, so exit once the database is closed.
-    for (const sig of ['SIGINT', 'SIGTERM'] as const) process.once(sig, () => void client.close().finally(() => process.exit(0)));
-  }
+  const file = url?.startsWith('pglite:') ? url.slice(7) : path.join(process.cwd(), '.data', 'pglite.tar.gz');
+  const client = await openSnapshotDb(file);
   const db = drizzle({ client, schema });
   await migrate(db, { migrationsFolder });
   // Both drivers expose the same query builder; the app only uses that common surface.
   return db as unknown as ReturnType<typeof import('drizzle-orm/node-postgres').drizzle<typeof schema>>;
+}
+
+/**
+ * Development database: PGlite runs in memory and is saved to one compressed snapshot file a
+ * few seconds after each change. The snapshot is written to a temporary file and then swapped
+ * in, so stopping the dev server at any moment (closing the app, a crash, a reboot) can lose
+ * at most the last few seconds and never corrupts the database. PGlite's own on-disk mode is
+ * not safe against being killed on Windows.
+ */
+async function openSnapshotDb(file: string) {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const fs = await import('node:fs');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+
+  let loadDataDir: Blob | undefined;
+  if (fs.existsSync(file)) loadDataDir = new Blob([fs.readFileSync(file)]);
+  else {
+    // A database from the older folder layout is carried over once, if it still opens.
+    const oldDir = path.join(path.dirname(file), 'pglite');
+    if (fs.existsSync(oldDir)) {
+      try {
+        const old = new PGlite(oldDir);
+        await old.waitReady;
+        loadDataDir = await old.dumpDataDir('gzip');
+        await old.close();
+      } catch {
+        console.warn(`[db] The old development database in ${oldDir} could not be opened; starting a fresh one. Sign up again: the first account becomes super admin.`);
+      }
+    }
+  }
+  const client = new PGlite({ loadDataDir });
+  await client.waitReady;
+
+  let dirty = !fs.existsSync(file);
+  let saving: Promise<void> | null = null;
+  const save = async () => {
+    if (!dirty || saving) return saving ?? undefined;
+    dirty = false;
+    saving = (async () => {
+      const blob = await client.dumpDataDir('gzip');
+      const tmp = `${file}.tmp`;
+      fs.writeFileSync(tmp, new Uint8Array(await blob.arrayBuffer()));
+      fs.renameSync(tmp, file);
+    })()
+      .catch((e) => {
+        dirty = true;
+        console.warn('[db] Could not save the development database snapshot:', (e as Error).message);
+      })
+      .finally(() => (saving = null));
+    return saving;
+  };
+
+  // Anything that is not a plain read marks the database as changed.
+  const c = client as unknown as Record<string, (...a: unknown[]) => unknown>;
+  for (const name of ['query', 'exec', 'transaction'] as const) {
+    const original = c[name].bind(client);
+    c[name] = (...args: unknown[]) => {
+      if (name !== 'query' || !/^\s*select\b/i.test(String(args[0]))) dirty = true;
+      return original(...args);
+    };
+  }
+  setInterval(() => void save(), 3000).unref();
+  const g2 = globalThis as unknown as { __tvPgliteExit?: boolean };
+  if (!g2.__tvPgliteExit) {
+    g2.__tvPgliteExit = true;
+    // Listening for a signal replaces Node's default exit, so exit once the last change is saved.
+    for (const sig of ['SIGINT', 'SIGTERM'] as const) process.once(sig, () => void save().finally(() => process.exit(0)));
+  }
+  return client;
 }
 
 /**
