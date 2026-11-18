@@ -218,7 +218,34 @@ export async function unlockPdf(bytes: Uint8Array, password: string): Promise<Ui
     if (/password|decrypt|encrypt/i.test(e?.message ?? '')) throw new WrongPasswordError('That password does not open this PDF.');
     throw e;
   }
+  dropEncryptionLeftovers(lib, doc);
   return doc.save();
+}
+
+/**
+ * After decryption the library drops the trailer's /Encrypt entry but still copies two things
+ * into the new file: the old security dictionary and the old cross-reference stream (which
+ * names /Encrypt). Neither is referenced any more, but some readers and checkers see them and
+ * report the file as still protected, so they are removed.
+ */
+function dropEncryptionLeftovers(lib: typeof import('@cantoo/pdf-lib'), doc: import('@cantoo/pdf-lib').PDFDocument) {
+  const { PDFName, PDFDict, PDFStream, PDFInvalidObject } = lib;
+  const ctx = doc.context;
+  const name = (s: string) => PDFName.of(s);
+  for (const [ref, obj] of ctx.enumerateIndirectObjects()) {
+    const dict = obj instanceof PDFStream ? obj.dict : obj instanceof PDFDict ? obj : null;
+    if (dict) {
+      const xref = dict.get(name('Type')) === name('XRef');
+      const security = dict.get(name('Filter')) === name('Standard') && dict.has(name('O')) && dict.has(name('U'));
+      if (xref || security) ctx.delete(ref);
+    } else if (obj instanceof PDFInvalidObject) {
+      // An old cross-reference stream that could not be read back once decrypted.
+      let head = '';
+      const bytes = (obj as unknown as { data: Uint8Array }).data ?? new Uint8Array();
+      for (let i = 0; i < Math.min(bytes.length, 400); i++) head += String.fromCharCode(bytes[i]);
+      if (/\/Type\s*\/XRef/.test(head) || (/\/Root\s/.test(head) && /\/Size\s/.test(head))) ctx.delete(ref);
+    }
+  }
 }
 
 export interface Permissions {

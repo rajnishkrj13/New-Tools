@@ -20,6 +20,7 @@ const TOOLS: Record<string, ComponentType<ToolProps>> = {
   'jpg-to-pdf': dynamic(() => import('./jpg-to-pdf'), { loading }),
   'pdf-to-jpg': dynamic(() => import('./pdf-to-jpg'), { loading }),
   'protect-pdf': dynamic(() => import('./protect-pdf'), { loading }),
+  'unlock-pdf': dynamic(() => import('./unlock-pdf'), { loading }),
   'compress-image': dynamic(() => import('./compress-image'), { loading }),
   'resize-image': dynamic(() => import('./resize-image'), { loading }),
   'crop-image': dynamic(() => import('./crop-image'), { loading }),

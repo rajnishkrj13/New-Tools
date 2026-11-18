@@ -34,7 +34,7 @@ export default function MergePdf(props: ToolProps) {
           continue;
         }
         const bytes = new Uint8Array(await f.arrayBuffer());
-        if (looksEncrypted(bytes)) throw new Error(`"${f.name}" is password-protected. Open it in the PDF Editor to remove the password, then merge.`);
+        if (looksEncrypted(bytes)) throw new Error(`"${f.name}" is password-protected. Remove the password with Unlock PDF (toolyverse.com/unlock-pdf), then merge.`);
         parts.push(bytes);
       }
       setBusy('Joining…');

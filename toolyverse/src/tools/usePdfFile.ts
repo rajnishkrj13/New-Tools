@@ -14,7 +14,7 @@ export function usePdfFile() {
     setError(null);
     try {
       const b = new Uint8Array(await f.arrayBuffer());
-      if (!opts.allowEncrypted && looksEncrypted(b)) throw new Error('This PDF is password-protected. Open it in the PDF Editor to remove the password first.');
+      if (!opts.allowEncrypted && looksEncrypted(b)) throw new Error('This PDF is password-protected. Remove the password with Unlock PDF (toolyverse.com/unlock-pdf) first.');
       const { PDFDocument } = await import('pdf-lib');
       const doc = await PDFDocument.load(b, { ignoreEncryption: !!opts.allowEncrypted, updateMetadata: false });
       setFile(f);
