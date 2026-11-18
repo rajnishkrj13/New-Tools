@@ -17,6 +17,8 @@ export interface OcrWord {
   confidence: number;
   /** Position in the picture that was read (the prepared canvas), in pixels. */
   box: { x0: number; y0: number; x1: number; y1: number };
+  /** The word's line: baseline under the word and Tesseract's row height, in pixels. */
+  line?: { baseline: number; height: number };
 }
 export interface OcrResult {
   text: string;
@@ -131,7 +133,15 @@ export async function recognize(canvas: HTMLCanvasElement, lang: OcrLang, onProg
     const words: OcrWord[] = [];
     for (const b of data.blocks ?? [])
       for (const p of b.paragraphs ?? [])
-        for (const l of p.lines ?? []) for (const w of l.words ?? []) if (w.text?.trim()) words.push({ text: w.text, confidence: w.confidence, box: w.bbox });
+        for (const l of p.lines ?? [])
+          for (const w of l.words ?? []) {
+            if (!w.text?.trim()) continue;
+            const bl = l.baseline;
+            const mid = (w.bbox.x0 + w.bbox.x1) / 2;
+            const baseline = bl && bl.x1 !== bl.x0 ? bl.y0 + ((bl.y1 - bl.y0) * (mid - bl.x0)) / (bl.x1 - bl.x0) : w.bbox.y1;
+            const height = l.rowAttributes?.rowHeight || (l.bbox.y1 - l.bbox.y0) * 0.8;
+            words.push({ text: w.text, confidence: w.confidence, box: w.bbox, line: { baseline, height } });
+          }
     return { text: tidyText(data.text ?? ''), confidence: Math.round(data.confidence ?? 0), words, width: canvas.width, height: canvas.height };
   } finally {
     progress = null;
