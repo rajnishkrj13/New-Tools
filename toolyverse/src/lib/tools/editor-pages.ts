@@ -159,7 +159,7 @@ export const EDITOR_PAGES: Tool[] = [
       { q: 'Will the downloaded PDF look the same?', a: 'Yes. The page picture is kept as it is; the recognised words are added as an invisible text layer so the file becomes searchable.' },
       { q: 'Can it read handwriting?', a: 'Printed text works best. Neat handwriting may be partly recognised, but expect mistakes.' },
     ],
-    related: ['pdf-editor', 'compress-pdf', 'pdf-to-jpg', 'redact-pdf'],
+    related: ['pdf-editor', 'image-to-text', 'compress-pdf', 'redact-pdf'],
     keywords: ['edit scanned pdf', 'ocr pdf', 'scanned pdf to editable', 'hindi ocr pdf', 'make pdf searchable', 'pdf ocr online free'],
   },
   {

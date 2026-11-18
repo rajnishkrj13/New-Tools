@@ -43,6 +43,7 @@ describe('tool and landing page catalogue', () => {
       'convert-image': (p) => ['jpg', 'png', 'webp'].includes(p.to),
       'pdf-to-jpg': (p) => ['jpg', 'png'].includes(p.format),
       'crop-image': (p) => p.ratio === 'passport',
+      'image-to-text': (p) => ['eng', 'hin', 'eng+hin'].includes(p.lang),
     };
     for (const t of LANDING_PAGES) {
       expect(toolBySlug.has(t.opens!), `${t.slug} opens ${t.opens}`).toBe(true);

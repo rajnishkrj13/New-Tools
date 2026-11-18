@@ -385,4 +385,98 @@ export const LANDING_PAGES: Tool[] = [
     related: ['jpg-to-pdf', 'merge-pdf', 'pdf-to-png', 'compress-pdf'],
     keywords: ['png to pdf', 'convert png to pdf', 'screenshot to pdf', 'image to pdf', 'png to pdf converter'],
   },
+  // ---- Image to text -----------------------------------------------------------------------------
+  {
+    category: 'image',
+    opens: 'image-to-text',
+    limits: imageLimits,
+    updated: '2026-11-18',
+    slug: 'screenshot-to-text',
+    no: 44,
+    preset: { lang: 'eng' },
+    name: 'Screenshot to Text',
+    short: 'Copy the text out of any screenshot',
+    title: 'Screenshot to Text – Copy Text from a Screenshot, Free',
+    description: 'Paste a screenshot with Ctrl+V and copy the text in it: app messages, error codes, chats and web pages. Free OCR in your browser, no upload.',
+    h1: 'Get the text out of a screenshot',
+    intro:
+      'Some text cannot be selected: an error message, a chat, a video frame, a page in an app. Take a screenshot, press Ctrl+V on this page, and the text appears ready to copy. Screenshots are sharp, so they are read almost perfectly, and nothing is uploaded.',
+    steps: [
+      'Take a screenshot: Windows key + Shift + S on Windows, Cmd + Shift + 4 on a Mac, or the usual buttons on a phone.',
+      'Press Ctrl+V (Cmd+V on a Mac) on this page, or choose the screenshot file.',
+      'Copy the text, or download it as a .txt file.',
+    ],
+    sections: [
+      {
+        h2: 'Why screenshots are read so accurately',
+        body: [
+          'A screenshot has perfectly straight, evenly lit text drawn by the computer itself, which is the easiest kind of picture for a text reader. Small screenshots are enlarged before reading, so even tiny interface text comes out right. If a screenshot has coloured text on a coloured background, keep “Improve faint text” on.',
+        ],
+      },
+      {
+        h2: 'Handy for',
+        list: [
+          'Error messages: copy the exact error to search for a fix or send to support.',
+          'Chats and posts: keep a message as text instead of an image.',
+          'Video frames and slides: copy the text from a paused video or a shared slide.',
+          'Codes and numbers: tracking IDs, account numbers and references shown in apps. Check digits carefully before using them.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Can I paste several screenshots?', a: 'Yes. Paste them one after another; each is read in turn and all the text is collected in one box.' },
+      { q: 'Does it work on a phone?', a: 'Yes. Choose the screenshot from your gallery with the button; pasting depends on your phone’s browser.' },
+      { q: 'Is my screenshot uploaded?', a: 'No. It is read in your browser and never leaves your device.' },
+    ],
+    related: ['image-to-text', 'hindi-image-to-text', 'crop-image', 'compress-image'],
+    keywords: ['screenshot to text', 'copy text from screenshot', 'extract text from screenshot', 'screenshot ocr', 'text from screenshot online'],
+  },
+  {
+    category: 'image',
+    opens: 'image-to-text',
+    limits: imageLimits,
+    updated: '2026-11-18',
+    slug: 'hindi-image-to-text',
+    no: 45,
+    preset: { lang: 'hin' },
+    lang: 'hi',
+    name: 'Hindi Image to Text',
+    short: 'फोटो या स्कैन से हिंदी टेक्स्ट निकालें',
+    title: 'Hindi Image to Text – फोटो से हिंदी टेक्स्ट निकालें, Free',
+    description: 'हिंदी फोटो, स्कैन या स्क्रीनशॉट से टेक्स्ट निकालें और कॉपी करें। हिंदी और अंग्रेज़ी दोनों पढ़े जाते हैं। मुफ़्त, बिना अपलोड, आपके ब्राउज़र में।',
+    h1: 'फोटो से हिंदी टेक्स्ट निकालें',
+    intro:
+      'किसी किताब के पेज, नोटिस, अख़बार या स्कैन किए दस्तावेज़ की फोटो डालें और उसमें लिखा हिंदी टेक्स्ट तुरंत कॉपी करने लायक बन जाता है। मात्राएँ और संयुक्त अक्षर सही पढ़े जाते हैं, और जिन शब्दों पर शक हो वे फोटो पर चिन्हित दिखते हैं। आपकी फोटो कहीं अपलोड नहीं होती।',
+    steps: [
+      'भाषा में “Hindi” चुना हुआ है; अगर पेज पर अंग्रेज़ी भी है तो “English + Hindi” चुनें।',
+      'फोटो चुनें, यहाँ छोड़ें, या स्क्रीनशॉट को Ctrl+V से पेस्ट करें।',
+      'चिन्हित शब्दों को जाँचें, ज़रूरत हो तो सुधारें, फिर टेक्स्ट कॉपी करें या .txt फ़ाइल डाउनलोड करें।',
+    ],
+    sections: [
+      {
+        h2: 'सही टेक्स्ट पाने के लिए',
+        list: [
+          'सीधी फोटो: फ़ोन को पेज के बिल्कुल ऊपर रखें, अच्छी रोशनी में, बिना परछाईं के।',
+          'सिर्फ़ टेक्स्ट वाला हिस्सा: फालतू किनारे काट दें; इसके लिए [Crop Image](/crop-image) इस्तेमाल करें।',
+          'छपा हुआ टेक्स्ट: छपे या टाइप किए अक्षर सबसे अच्छे पढ़े जाते हैं; हाथ की लिखावट में गलतियाँ हो सकती हैं।',
+          'नाम और अंक: नाम, तारीख और रकम ज़रूर जाँच लें।',
+        ],
+      },
+      {
+        h2: 'किन कामों में मदद करता है',
+        body: [
+          'किताब या नोट्स से टाइप किए बिना हिंदी टेक्स्ट निकालना, सरकारी नोटिस या आदेश की कॉपी को एडिट करने लायक बनाना, और व्हाट्सऐप पर आई हिंदी फोटो से संदेश कॉपी करना। स्कैन किए PDF के लिए [Edit Scanned PDF](/edit-scanned-pdf) देखें, और English में पूरी जानकारी के लिए [Image to Text](/image-to-text)।',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'क्या यह मुफ़्त है?', a: 'हाँ, पूरी तरह मुफ़्त, बिना साइन-अप के और जितनी चाहें उतनी फोटो के लिए।' },
+      { q: 'क्या हिंदी और अंग्रेज़ी एक साथ पढ़ सकते हैं?', a: 'हाँ, भाषा में “English + Hindi” चुनें। एक ही पेज पर दोनों भाषाएँ पढ़ी जाती हैं।' },
+      { q: 'क्या मेरी फोटो अपलोड होती है?', a: 'नहीं। टेक्स्ट आपके ब्राउज़र में ही पढ़ा जाता है, फोटो आपके डिवाइस से बाहर नहीं जाती।' },
+      { q: 'निकाला गया टेक्स्ट कहाँ इस्तेमाल कर सकते हैं?', a: 'Word, Google Docs, WhatsApp या कहीं भी पेस्ट करें। यह सामान्य यूनिकोड हिंदी टेक्स्ट है।' },
+    ],
+    related: ['image-to-text', 'hindi-pdf-editor', 'edit-scanned-pdf', 'screenshot-to-text'],
+    keywords: ['hindi image to text', 'hindi ocr', 'photo se hindi text', 'हिंदी इमेज से टेक्स्ट', 'image to text hindi', 'hindi photo to text'],
+    alternates: { 'en-IN': '/image-to-text' },
+  },
 ];

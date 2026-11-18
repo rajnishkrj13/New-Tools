@@ -598,6 +598,101 @@ export const TOOLS: Tool[] = [
     keywords: ['webp to jpg', 'png to jpg', 'jpg to png', 'image converter'],
   },
 
+  {
+    slug: 'image-to-text',
+    category: 'image',
+    no: 43,
+    name: 'Image to Text',
+    short: 'Extract text from photos, scans and screenshots (OCR)',
+    title: 'Image to Text Converter – Extract Text from Image, Free',
+    description: 'Extract text from images, photos and screenshots online with OCR, in English and Hindi. Copy it or download a .txt file. Free, private, no upload.',
+    h1: 'Image to Text: extract text from a picture',
+    intro:
+      'Turn a photo of a page, a scanned document or a screenshot into text you can copy, edit and search. Drop or paste the image and the text appears beside it in seconds, in English, Hindi or both. Words the reader was unsure about are outlined on the picture, so you know exactly what to check. Everything runs in your browser: your images are never uploaded.',
+    steps: [
+      'Choose the language of the text (English, Hindi, or both).',
+      'Drop images, choose them, or paste a screenshot with Ctrl+V. Several images can be read in one go.',
+      'Check the outlined words, edit the text if needed, then copy it or download a .txt file.',
+    ],
+    sections: [
+      {
+        h2: 'What you can turn into text',
+        list: [
+          'Photos of documents: letters, notices, book pages, receipts and bills photographed with a phone.',
+          'Screenshots: text in an app, a chat, an error message or a web page that cannot be selected. See [Screenshot to Text](/screenshot-to-text).',
+          'Scans: JPG or PNG scans of printed pages. For a scanned PDF, use [Edit Scanned PDF](/edit-scanned-pdf), which keeps the page and adds searchable text to it.',
+          'Hindi text: printed Devanagari, including matras and joined letters. See [Hindi Image to Text](/hindi-image-to-text).',
+          'Many images at once: read a whole batch and get all the text in one place, each part headed with its file name.',
+        ],
+      },
+      {
+        h2: 'How to get the most accurate text',
+        list: [
+          'Photograph straight on: hold the phone parallel to the page, in good light, without shadows across the text.',
+          'Crop to the text: borders, hands and backgrounds can confuse the reader. Use [Crop Image](/crop-image) first if needed.',
+          'Pick the right language: choose “English + Hindi” when a page mixes both.',
+          'Use “Improve faint text”: it is on by default and helps with pale, coloured or low-contrast print. Turn it off for clean screenshots if results look worse.',
+          'Check the outlined words: names, numbers and amounts matter most, so look at those before you rely on the text.',
+        ],
+      },
+      {
+        h2: 'Private by design',
+        body: [
+          'Most image-to-text websites upload your picture to their server and read it there. Here, the text reader (Tesseract OCR, the open-source engine also used by many professional tools) is downloaded to your browser once and runs on your own computer or phone. Your images never leave your device, which matters for bills, letters, ID documents and anything personal.',
+        ],
+      },
+      {
+        h2: 'Image to text compared',
+        table: {
+          head: ['', 'Toolyverse Image to Text', 'Typical online OCR sites', 'Copying the text by hand'],
+          rows: [
+            ['Where your image goes', 'Stays on your device', 'Uploaded to their server', 'Nowhere'],
+            ['Hindi', 'Yes, with English on the same page', 'Often English only', 'Slow to type'],
+            ['Several images at once', 'Yes', 'Often one per go, or paid', 'n/a'],
+            ['Shows what to check', 'Unsure words outlined on the image', 'Rarely', 'n/a'],
+            ['Price', 'Free', 'Free with limits or ads', 'Your time'],
+          ],
+        },
+      },
+    ],
+    faqs: [
+      { q: 'Is this image to text converter free?', a: 'Yes, completely, with no sign-up and no limit on how many images you read. A free account only raises the file size limit.' },
+      { q: 'Are my images uploaded?', a: 'No. The text is read inside your browser. Your images stay on your device and nothing is sent to Toolyverse.' },
+      { q: 'Which languages can it read?', a: 'English and Hindi, on their own or together on the same image.' },
+      { q: 'Can it read handwriting?', a: 'Printed and typed text works best. Neat handwriting is sometimes partly read, but expect mistakes and check the result.' },
+      { q: 'How accurate is it?', a: 'Clear printed text and screenshots are usually read almost perfectly. Blurry, angled or low-light photos give more mistakes; the tool shows how sure it was and outlines the words to check.' },
+      { q: 'Can I extract text from a PDF?', a: 'Yes, with [Edit Scanned PDF](/edit-scanned-pdf) for scans, which makes the whole PDF searchable. For a single page, [PDF to JPG](/pdf-to-jpg) followed by this tool also works.' },
+      { q: 'Does the layout stay the same?', a: 'Lines and paragraphs are kept, and spacing between columns is preserved as spaces. Tables come out as text in rows, not as a spreadsheet.' },
+      { q: 'Why is the first image slower?', a: 'The first time, your browser downloads the text reader and the language data (a few megabytes). After that it is ready at once.' },
+    ],
+    featureList: [
+      'Extract text from JPG, PNG, WebP, BMP and GIF images',
+      'Paste screenshots with Ctrl+V',
+      'English and Hindi OCR, also mixed',
+      'Read many images in one go',
+      'Outlines the words to check on the image',
+      'Improve faint or low-contrast text',
+      'Copy or download as .txt',
+      'Runs in the browser, no upload',
+    ],
+    features: [{ key: 'batch', label: 'Several images at once', hint: 'Choose or paste many images and read them in one go', default: true }],
+    limits: { publicMb: 15, memberMb: 50 },
+    related: ['screenshot-to-text', 'hindi-image-to-text', 'edit-scanned-pdf', 'crop-image'],
+    alternates: { 'hi-IN': '/hindi-image-to-text' },
+    keywords: [
+      'image to text',
+      'image to text converter',
+      'extract text from image',
+      'photo to text',
+      'jpg to text',
+      'ocr online',
+      'picture to text',
+      'copy text from image',
+      'screenshot to text',
+      'image to text online free',
+    ],
+  },
+
   // ---- GST ---------------------------------------------------------------------------------------
   {
     slug: 'gst-calculator',

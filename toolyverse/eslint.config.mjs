@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     // Built copies of the PDF editor and the pdf.js worker (scripts/copy-assets.mjs), not source.
     "public/pdf-editor/**",
     "public/pdfjs/**",
+    "public/ocr/**",
     ".data/**",
   ]),
 ]);

@@ -44,5 +44,6 @@ next-env.d.ts
 /.data
 /public/pdfjs
 /public/pdf-editor
+/public/ocr
 
 !.env.example

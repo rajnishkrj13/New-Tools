@@ -23,6 +23,7 @@ const TOOLS: Record<string, ComponentType<ToolProps>> = {
   'compress-image': dynamic(() => import('./compress-image'), { loading }),
   'resize-image': dynamic(() => import('./resize-image'), { loading }),
   'crop-image': dynamic(() => import('./crop-image'), { loading }),
+  'image-to-text': dynamic(() => import('./image-to-text'), { loading }),
   'convert-image': dynamic(() => import('./convert-image'), { loading }),
   'gst-calculator': dynamic(() => import('./gst-calculator'), { loading }),
   'gstin-validator': dynamic(() => import('./gstin-validator'), { loading }),
