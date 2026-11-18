@@ -67,7 +67,7 @@ export function Sections({ sections }: { sections: Section[] }) {
                     <tr key={r[0]} className="border-b border-rule align-top">
                       {r.map((c, i) => (
                         <td key={i} className={`py-2 pr-3 ${i === 0 ? 'font-medium' : i === 1 ? 'font-semibold' : 'text-ink-2'}`}>
-                          {c}
+                          <Rich text={c} />
                         </td>
                       ))}
                     </tr>

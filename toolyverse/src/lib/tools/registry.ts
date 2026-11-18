@@ -1,5 +1,6 @@
 import { EDITOR_PAGES } from './editor-pages';
 import { LANDING_PAGES } from './landing-pages';
+import { QR_PAGES, QR_TOOL } from './qr-pages';
 
 /**
  * Every tool on Toolyverse: its address, what search engines see, the help text on its page
@@ -7,7 +8,7 @@ import { LANDING_PAGES } from './landing-pages';
  * src/tools/<slug>.tsx; this file is plain data so both server and browser can read it.
  */
 
-export type CategoryId = 'pdf' | 'image' | 'gst' | 'convert';
+export type CategoryId = 'pdf' | 'image' | 'qr' | 'gst' | 'convert';
 
 export interface Category {
   id: CategoryId;
@@ -140,6 +141,7 @@ export const CATEGORIES: Category[] = [
           'Passport shape or a square profile picture: [Passport Size Photo](/passport-size-photo) or [Crop Image](/crop-image).',
           'Wrong file type: [PNG to JPG](/png-to-jpg), [JPG to PNG](/jpg-to-png), [WebP to JPG](/webp-to-jpg), or any of them in [Convert Image](/convert-image).',
           'Several photos into one document: [JPG to PDF](/jpg-to-pdf).',
+          'Text inside a picture: [Image to Text](/image-to-text) copies it out.',
         ],
       },
       {
@@ -177,6 +179,36 @@ export const CATEGORIES: Category[] = [
         h2: 'Year-end checks before the annual return',
         body: [
           'Download the filed GSTR-1 and GSTR-3B PDFs for the financial year from the GST portal and drop them all into the converters at once: each return is read, checked against its own totals, and placed in its month. The GSTR-1 vs GSTR-3B report then shows where declared sales and tax paid differ, which is the first thing to settle before the annual return. Your clients’ returns are read in your browser and are never uploaded.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'qr',
+    slug: 'qr-code-tools',
+    name: 'QR code tools',
+    mark: 'Qr',
+    blurb: 'QR codes for links, WiFi, UPI, WhatsApp and contacts, with or without your logo.',
+    title: 'QR Code Tools – Free QR Code Generator & Makers',
+    description: 'Free QR code makers for websites, WiFi, UPI payments, WhatsApp, vCards, Google reviews, menus and more. Add a logo, download PNG, SVG or PDF.',
+    intro:
+      'Every kind of QR code a shop, office or person needs, made in your browser. They are static codes: free, with no sign-up, no scan limits and no expiry date.',
+    sections: [
+      {
+        h2: 'Which QR code do I need?',
+        list: [
+          'Any link or text, your own design: the [QR Code Generator](/qr-code-generator) does every type, [with a logo](/qr-code-generator-with-logo) or [without](/qr-code-generator-without-logo).',
+          'Getting paid: [UPI QR code](/upi-qr-code-generator) for GPay, PhonePe, Paytm and BHIM.',
+          'Guests and customers: [WiFi](/wifi-qr-code-generator), [menu](/menu-qr-code-generator), [Google review](/google-review-qr-code-generator) and [WhatsApp](/whatsapp-qr-code-generator) codes.',
+          'Contact details: [vCard](/vcard-qr-code-generator) for a person, [Business](/business-qr-code-generator) for a shop or company.',
+          'Places and profiles: [Google Maps](/google-maps-qr-code-generator), [Instagram](/instagram-qr-code-generator) and [YouTube](/youtube-qr-code-generator).',
+          'Files and pages: [PDF](/pdf-qr-code-generator), [website link](/url-qr-code-generator) and [plain text](/text-qr-code-generator).',
+        ],
+      },
+      {
+        h2: 'Free, and they never expire',
+        body: [
+          'Many QR sites make “dynamic” codes that point to their own server and stop working when a free trial ends. Codes made here hold your link or details inside the pattern itself, so they keep working without Toolyverse, for as long as what they point to exists. See the [Free QR Code Generator](/free-qr-code-generator) page for the difference.',
         ],
       },
     ],
@@ -994,7 +1026,7 @@ export const TOOLS: Tool[] = [
 
 // Landing pages for each PDF editor search intent (sign, fill forms, OCR, redact...), and for
 // the exact searches people make for the other tools (compress to 20 KB, PNG to JPG...).
-TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES);
+TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES, QR_TOOL, ...QR_PAGES);
 
 export const toolBySlug = new Map(TOOLS.map((t) => [t.slug, t]));
 export const categoryById = new Map(CATEGORIES.map((c) => [c.id, c]));

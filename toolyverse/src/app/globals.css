@@ -20,6 +20,7 @@
   --image: #2a6a8a;
   --gst: #2c6a45;
   --convert: #8a5d16;
+  --qr: #5b4a8a;
   --ok: #2c6a45;
   --warn: #9a6a00;
   --bad: #b3261e;
@@ -41,6 +42,7 @@
     --image: #5fa6c8;
     --gst: #5fae7c;
     --convert: #d39b3f;
+    --qr: #a593d8;
     --ok: #5fae7c;
     --warn: #e0b04a;
     --bad: #f07067;
@@ -62,6 +64,7 @@
   --color-image: var(--image);
   --color-gst: var(--gst);
   --color-convert: var(--convert);
+  --color-qr: var(--qr);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);

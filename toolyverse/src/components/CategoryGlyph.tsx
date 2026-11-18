@@ -1,8 +1,8 @@
 import type { CategoryId } from '@/lib/tools/registry';
 
-/** Drawn glyphs for the four drawers, so the catalogue does not rely on stock icon sets. */
+/** Drawn glyphs for the drawers, so the catalogue does not rely on stock icon sets. */
 export function CategoryGlyph({ id, size = 40 }: { id: CategoryId; size?: number }) {
-  const c = `var(--${id === 'convert' ? 'convert' : id})`;
+  const c = `var(--${id})`;
   const common = { width: size, height: size, viewBox: '0 0 40 40', 'aria-hidden': true } as const;
   if (id === 'pdf')
     return (
@@ -20,6 +20,23 @@ export function CategoryGlyph({ id, size = 40 }: { id: CategoryId; size?: number
         <rect x="5" y="8" width="30" height="24" fill="var(--card)" stroke="var(--ink)" strokeWidth="1.6" />
         <path d="M5 28l9-9 7 7 4-4 10 10" fill="none" stroke={c} strokeWidth="2" strokeLinejoin="round" />
         <circle cx="26" cy="15" r="3" fill={c} />
+      </svg>
+    );
+  if (id === 'qr')
+    return (
+      <svg {...common}>
+        <rect x="5" y="5" width="30" height="30" fill="var(--card)" stroke="var(--ink)" strokeWidth="1.6" />
+        {[
+          [8, 8],
+          [25, 8],
+          [8, 25],
+        ].map(([x, y]) => (
+          <g key={`${x}-${y}`}>
+            <rect x={x + 0.8} y={y + 0.8} width="5.4" height="5.4" fill="none" stroke="var(--ink)" strokeWidth="1.6" />
+            <rect x={x + 2.5} y={y + 2.5} width="2" height="2" fill="var(--ink)" />
+          </g>
+        ))}
+        <path d="M17 9h2v4h-2zM17 17h4v2h-4zM9 18h4v2H9zM17 22h2v2h-2zM24 18h2v4h-2zM21 25h4v2h-4zM28 25h2v5h-2zM17 28h4v2h-4z" fill={c} />
       </svg>
     );
   if (id === 'gst')

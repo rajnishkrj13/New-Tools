@@ -17,9 +17,9 @@ export function SiteHeader({ viewer, announcement }: { viewer: Viewer; announcem
         <Link href="/" aria-label="Toolyverse home" className="shrink-0">
           <Logo />
         </Link>
-        <nav aria-label="Tool categories" className="hidden flex-1 items-center gap-1 md:flex">
+        <nav aria-label="Tool categories" className="hidden flex-1 items-center gap-0.5 lg:flex">
           {CATEGORIES.map((c) => (
-            <Link key={c.id} href={categoryPath(c)} className="rounded-xs px-3 py-1.5 text-[0.93rem] font-medium text-ink-2 hover:bg-paper-2 hover:text-ink">
+            <Link key={c.id} href={categoryPath(c)} className="rounded-xs px-2.5 py-1.5 whitespace-nowrap text-[0.93rem] font-medium text-ink-2 hover:bg-paper-2 hover:text-ink">
               {c.name}
             </Link>
           ))}
