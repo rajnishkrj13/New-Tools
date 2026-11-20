@@ -47,6 +47,17 @@ export function CategoryGlyph({ id, size = 40 }: { id: CategoryId; size?: number
         <text x="20" y="28.5" textAnchor="middle" fontSize="10" fontFamily="var(--font-mono)" fontWeight="700" fill={c}>₹%</text>
       </svg>
     );
+  if (id === 'tally')
+    return (
+      <svg {...common}>
+        <rect x="6" y="5" width="28" height="31" fill="var(--card)" stroke="var(--ink)" strokeWidth="1.6" />
+        <path d="M6 12h28M20 12v24" stroke="var(--ink)" strokeWidth="1.4" />
+        <text x="13" y="10.6" textAnchor="middle" fontSize="5.2" fontFamily="var(--font-mono)" fontWeight="700" fill={c}>Dr</text>
+        <text x="27" y="10.6" textAnchor="middle" fontSize="5.2" fontFamily="var(--font-mono)" fontWeight="700" fill={c}>Cr</text>
+        <path d="M9 17h8M9 22h6M23 17h8M23 22h6M23 27h8" stroke="var(--ink-3)" strokeWidth="1.5" />
+        <path d="M9 31h8M23 31h8" stroke={c} strokeWidth="2" />
+      </svg>
+    );
   return (
     <svg {...common}>
       <rect x="4" y="13" width="32" height="14" fill="var(--card)" stroke="var(--ink)" strokeWidth="1.6" />

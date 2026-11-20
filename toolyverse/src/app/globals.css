@@ -21,6 +21,7 @@
   --gst: #2c6a45;
   --convert: #8a5d16;
   --qr: #5b4a8a;
+  --tally: #1f5c74;
   --ok: #2c6a45;
   --warn: #9a6a00;
   --bad: #b3261e;
@@ -43,6 +44,7 @@
     --gst: #5fae7c;
     --convert: #d39b3f;
     --qr: #a593d8;
+    --tally: #5fb1cf;
     --ok: #5fae7c;
     --warn: #e0b04a;
     --bad: #f07067;
@@ -65,6 +67,7 @@
   --color-gst: var(--gst);
   --color-convert: var(--convert);
   --color-qr: var(--qr);
+  --color-tally: var(--tally);
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);

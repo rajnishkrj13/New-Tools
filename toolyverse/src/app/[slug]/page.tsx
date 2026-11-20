@@ -87,11 +87,12 @@ async function CategoryPage({ cat }: { cat: Category }) {
         data={{
           '@context': 'https://schema.org',
           '@graph': [
-            { '@type': 'CollectionPage', name: cat.name, description: cat.description, url: `${SITE.url}${categoryPath(cat)}` },
+            { '@type': 'CollectionPage', name: cat.h1 ?? cat.name, description: cat.description, url: `${SITE.url}${categoryPath(cat)}` },
             crumbLd([
               { name: 'Home', href: '/' },
               { name: cat.name, href: categoryPath(cat) },
             ]),
+            ...(cat.faqs ? [{ '@type': 'FAQPage', mainEntity: cat.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') } })) }] : []),
           ],
         }}
       />
@@ -101,7 +102,7 @@ async function CategoryPage({ cat }: { cat: Category }) {
           <p className="label">
             Drawer {cat.mark} · {tools.length} tools
           </p>
-          <h1 className="display mt-3 text-[2.8rem] sm:text-[3.6rem]">{cat.name}</h1>
+          <h1 className="display mt-3 text-[2.8rem] sm:text-[3.6rem]">{cat.h1 ?? cat.name}</h1>
           <p className="mt-4 max-w-[62ch] text-[1.05rem] text-ink-2">{cat.intro}</p>
         </div>
         <CategoryGlyph id={cat.id} size={96} />
@@ -112,6 +113,26 @@ async function CategoryPage({ cat }: { cat: Category }) {
       {cat.sections && (
         <div className="prose-tv mt-12 max-w-[760px]">
           <Sections sections={cat.sections} />
+        </div>
+      )}
+      {cat.faqs && (
+        <div className="prose-tv mt-4 max-w-[760px]">
+          <h2>Questions people ask</h2>
+          <div className="border-t border-rule">
+            {cat.faqs.map((f) => (
+              <details key={f.q} className="group border-b border-rule py-1">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3 font-semibold [&::-webkit-details-marker]:hidden">
+                  <h3 className="text-[1.02rem]">{f.q}</h3>
+                  <span aria-hidden="true" className="font-mono text-ink-3 transition-transform group-open:rotate-45">
+                    +
+                  </span>
+                </summary>
+                <p className="pb-3">
+                  <Rich text={f.a} />
+                </p>
+              </details>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -128,7 +149,7 @@ async function ToolPage({ tool }: { tool: Tool }) {
   const url = `${SITE.url}${toolPath(tool)}`;
   // Big working screens get the full width; the help text stays at reading width.
   const runs = tool.opens ?? tool.slug;
-  const wide = ['pdf-editor', 'gstr1-to-excel', 'gstr3b-to-excel', 'gstr1-vs-gstr3b', 'gstr2b-merger'].includes(runs);
+  const wide = ['pdf-editor', 'gstr1-to-excel', 'gstr3b-to-excel', 'gstr1-vs-gstr3b', 'gstr2b-merger', 'tally-journal-entry-excel', 'excel-to-tally-xml-converter', 'tally-xml-import', 'tally-xml-export', 'tally-xml-converter'].includes(runs);
 
   return (
     <article lang={tool.lang}>
@@ -141,7 +162,7 @@ async function ToolPage({ tool }: { tool: Tool }) {
               name: tool.name,
               url,
               description: tool.description,
-              applicationCategory: tool.category === 'gst' ? 'FinanceApplication' : 'UtilitiesApplication',
+              applicationCategory: tool.category === 'gst' || tool.category === 'tally' ? 'FinanceApplication' : 'UtilitiesApplication',
               operatingSystem: 'Any (runs in the browser)',
               browserRequirements: 'Requires JavaScript',
               isAccessibleForFree: true,

@@ -87,7 +87,7 @@ export default async function Home() {
 
       <section aria-labelledby="drawers" className="mx-auto max-w-[1180px] px-4 pt-14 sm:px-6">
         <h2 id="drawers" className="label">The drawers</h2>
-        <div className="mt-4 grid border-l border-t border-ink sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-4 grid border-l border-t border-ink sm:grid-cols-2 md:grid-cols-3">
           {CATEGORIES.map((c) => {
             const tools = toolsIn(c.id).filter((t) => states.get(t.slug)?.enabled);
             return (

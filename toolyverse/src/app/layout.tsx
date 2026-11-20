@@ -39,7 +39,9 @@ export default async function RootLayout({ children }: LayoutProps<'/'>) {
   const [viewer, announcement, states] = await Promise.all([getViewer(), getSiteSetting('announcement'), allToolStates()]);
   const hidden = new Set([...states.values()].filter((s) => !s.enabled).map((s) => s.slug));
   return (
-    <html lang="en-IN" className={`${plexSans.variable} ${plexCondensed.variable} ${plexMono.variable}`}>
+    // Browser extensions (dark-mode ones, for example) add styles to <html> before React loads;
+    // ignore attribute differences on this one element only.
+    <html lang="en-IN" className={`${plexSans.variable} ${plexCondensed.variable} ${plexMono.variable}`} suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
         <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
           Skip to content

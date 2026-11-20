@@ -1,6 +1,7 @@
 import { EDITOR_PAGES } from './editor-pages';
 import { LANDING_PAGES } from './landing-pages';
 import { QR_PAGES, QR_TOOL } from './qr-pages';
+import { TALLY_PAGES, TALLY_TOOLS } from './tally-pages';
 
 /**
  * Every tool on Toolyverse: its address, what search engines see, the help text on its page
@@ -8,7 +9,7 @@ import { QR_PAGES, QR_TOOL } from './qr-pages';
  * src/tools/<slug>.tsx; this file is plain data so both server and browser can read it.
  */
 
-export type CategoryId = 'pdf' | 'image' | 'qr' | 'gst' | 'convert';
+export type CategoryId = 'pdf' | 'image' | 'qr' | 'gst' | 'tally' | 'convert';
 
 export interface Category {
   id: CategoryId;
@@ -23,6 +24,9 @@ export interface Category {
   mark: string;
   /** Help below the list of tools: which tool for which job. */
   sections?: Section[];
+  /** Page heading when it should differ from the name. */
+  h1?: string;
+  faqs?: { q: string; a: string }[];
 }
 
 export interface Feature {
@@ -182,6 +186,81 @@ export const CATEGORIES: Category[] = [
           'Download the filed GSTR-1 and GSTR-3B PDFs for the financial year from the GST portal and drop them all into the converters at once: each return is read, checked against its own totals, and placed in its month. The GSTR-1 vs GSTR-3B report then shows where declared sales and tax paid differ, which is the first thing to settle before the annual return. Your clients’ returns are read in your browser and are never uploaded.',
         ],
       },
+    ],
+  },
+  {
+    id: 'tally',
+    slug: 'tally-journal-entry-generator',
+    name: 'Tally tools',
+    h1: 'Universal Tally Journal Entry Generator',
+    mark: 'Ty',
+    blurb: 'Journal entries in Excel, Excel to Tally XML, Tally XML to Excel, import checks and templates.',
+    title: 'Tally Journal Entry Generator – Excel, XML Import & Export',
+    description: 'Create Tally journal entries in Excel, convert Excel to Tally XML and Tally XML to Excel, check XML before import, and use 100+ templates. Free, nothing uploaded.',
+    intro:
+      'Everything between a spreadsheet and Tally in one place: write vouchers in an Excel-style sheet, turn any Excel or XML into Tally import files, open Tally exports in Excel, check a file before importing it, and start from more than a hundred ready accounting entries. All the tools work on files in your browser, for TallyPrime and Tally.ERP 9; nothing is uploaded and nothing connects to your Tally.',
+    sections: [
+      {
+        h2: 'Which Tally tool for which job',
+        list: [
+          'Write entries yourself: the [Excel Journal Entry Creator](/tally-journal-entry-excel) for journal, payment, receipt, contra, sales, purchase and note vouchers, with cost centres and bill references.',
+          'Start from a ready entry: [Journal Entry Templates](/tally-journal-entry-templates) for GST, TDS, payroll, depreciation, provisions, loans and intercompany entries.',
+          'Entries already in a spreadsheet: the [Excel to Tally XML Converter](/excel-to-tally-xml-converter) matches your columns; for XML from other software, the [XML to Tally Converter](/xml-to-tally-converter).',
+          'Getting a file into Tally: [XML to Tally Import](/tally-xml-import) checks it, finds missing ledgers and duplicates, and prepares a clean file; [Tally Voucher Import](/tally-voucher-import) covers bulk vouchers from Excel.',
+          'Getting data out of Tally: [Tally to XML Export](/tally-xml-export) and [Tally Voucher Export](/tally-voucher-export) filter an export down to what you need; the [Tally XML to Excel Converter](/tally-xml-to-excel-converter) opens any Tally XML as a workbook.',
+          'Changing a Tally file: the [Tally XML Converter](/tally-xml-converter) renames ledgers and voucher types, changes the company and removes IDs.',
+          'Checking a file: the [Tally XML Validator](/tally-xml-validator) lists every problem with its line number.',
+        ],
+      },
+      {
+        h2: 'Journal entries for every kind of transaction',
+        body: [
+          'The tools are not limited to simple two-line journals. A voucher can have any number of debit and credit lines, and the templates cover the entries accountants post every month: accruals, prepaid and outstanding expenses, provisions, depreciation, bad debts, rectification and reversal; input and output GST, set-off, reverse charge, TDS and TCS; bank charges, loans and EMI splits, cheque returns and exchange differences; salary provisions with PF, ESI and professional tax; asset purchase, capitalisation and disposal; and head office, branch and intercompany entries. Each is editable, and you can save your own.',
+        ],
+      },
+      {
+        h2: 'Excel and XML: how the pieces fit',
+        table: {
+          head: ['From', 'To', 'Tool'],
+          rows: [
+            ['Typing', 'Excel or Tally XML', '[Excel Journal Entry Creator](/tally-journal-entry-excel)'],
+            ['Excel, XLS, CSV', 'Tally XML', '[Excel to Tally XML Converter](/excel-to-tally-xml-converter)'],
+            ['Other software XML', 'Tally XML', '[XML to Tally Converter](/xml-to-tally-converter)'],
+            ['Tally XML', 'Excel', '[Tally XML to Excel Converter](/tally-xml-to-excel-converter)'],
+            ['Tally XML', 'Tally XML (renamed, other company)', '[Tally XML Converter](/tally-xml-converter)'],
+            ['Tally XML', 'Checked import file', '[XML to Tally Import](/tally-xml-import)'],
+          ],
+        },
+      },
+      {
+        h2: 'Tally versions',
+        body: ['The XML follows Tally’s published import format, which TallyPrime and Tally.ERP 9 share for accounting vouchers. Choose the version when downloading: the TallyPrime setting adds the view tags TallyPrime writes itself, the Tally.ERP 9 setting leaves them out, and a custom setting lets you choose each tag.'],
+        table: {
+          head: ['Product', 'Releases', 'Status'],
+          rows: [
+            ['TallyPrime', '1.x to 7.x', 'Supported format; not yet tested against each release'],
+            ['Tally.ERP 9', '6.x and earlier', 'Supported format (choose Tally.ERP 9); not yet tested against each release'],
+            ['Tally 7.2 and older', 'pre-ERP', 'Not supported'],
+          ],
+        },
+      },
+      {
+        h2: 'How the tools fit into your Tally work',
+        list: [
+          'Your books stay in your hands: the tools make and check files; you import them in Tally (Gateway of Tally → Import), after a backup.',
+          'Missing ledgers and duplicates: export List of Accounts or the Day Book from Tally as XML and compare against it before importing.',
+          'Private by design: spreadsheets and XML are read in your browser. Client data is never uploaded to us or anyone else.',
+          'Next to GST work: the [GST tools](/gst-tools) turn GSTR-1, GSTR-3B and GSTR-2B returns into Excel for reconciliation with the books.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Do these tools connect to Tally?', a: 'No. They read and write the Excel and XML files Tally imports and exports. You import the result in Tally yourself, which keeps every change to your books under your control.' },
+      { q: 'Are the Tally tools free?', a: 'Yes, with no sign-up and no limit on entries. A free account only raises the file size limit and keeps your saved templates across devices.' },
+      { q: 'Which voucher types are supported?', a: 'Journal, Payment, Receipt, Contra, Sales, Purchase, Debit Note and Credit Note, and custom types made from them (such as "Sales GST"), as accounting vouchers with ledgers and amounts.' },
+      { q: 'How do I import the XML into TallyPrime?', a: 'Back up the company, then Gateway of Tally → Import → Transactions (Masters for ledgers), give the path of the file and press Enter. Tally.ERP 9: Import of Data → Vouchers.' },
+      { q: 'Is my accounting data safe?', a: 'Files are processed in your browser and never uploaded. Drafts stay in your browser; templates you save go to your account only when you are signed in.' },
+      { q: 'Are the templates accounting advice?', a: 'No. They are common examples to save typing. Review each entry against the facts and your accounting policies.' },
     ],
   },
   {
@@ -1206,7 +1285,7 @@ export const TOOLS: Tool[] = [
 
 // Landing pages for each PDF editor search intent (sign, fill forms, OCR, redact...), and for
 // the exact searches people make for the other tools (compress to 20 KB, PNG to JPG...).
-TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES, QR_TOOL, ...QR_PAGES);
+TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES, QR_TOOL, ...QR_PAGES, ...TALLY_TOOLS, ...TALLY_PAGES);
 
 export const toolBySlug = new Map(TOOLS.map((t) => [t.slug, t]));
 export const categoryById = new Map(CATEGORIES.map((c) => [c.id, c]));

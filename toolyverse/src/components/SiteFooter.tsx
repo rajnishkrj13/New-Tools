@@ -6,7 +6,7 @@ import { LogoMark } from './Logo';
 export function SiteFooter({ hidden }: { hidden: Set<string> }) {
   return (
     <footer className="mt-24 border-t border-ink bg-paper-2">
-      <div className="mx-auto grid max-w-[1180px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-3 lg:grid-cols-[1.2fr_repeat(5,1fr)]">
+      <div className="mx-auto grid max-w-[1180px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-4 xl:grid-cols-[1.2fr_repeat(6,1fr)]">
         <div>
           <div className="flex items-center gap-2">
             <LogoMark size={24} />

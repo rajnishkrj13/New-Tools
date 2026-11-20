@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORIES, TOOLS, toolBySlug } from '../src/lib/tools/registry';
 import { LANDING_PAGES } from '../src/lib/tools/landing-pages';
 import { QR_PAGES } from '../src/lib/tools/qr-pages';
+import { TALLY_PAGES } from '../src/lib/tools/tally-pages';
 import { isQrType } from '../src/lib/qr/payload';
 
 /** Every page search engines see is described well, and every link in the help text works. */
@@ -46,9 +47,11 @@ describe('tool and landing page catalogue', () => {
       'pdf-to-jpg': (p) => ['jpg', 'png'].includes(p.format),
       'crop-image': (p) => p.ratio === 'passport',
       'image-to-text': (p) => ['eng', 'hin', 'eng+hin'].includes(p.lang),
+      'excel-to-tally-xml-converter': (p) => p.source === 'xml',
+      'tally-xml-import': (p) => p.accept === 'excel',
       'qr-code-generator': (p) => (p.type === undefined || isQrType(p.type)) && (p.logo === undefined || ['on', 'off'].includes(p.logo)),
     };
-    for (const t of [...LANDING_PAGES, ...QR_PAGES]) {
+    for (const t of [...LANDING_PAGES, ...QR_PAGES, ...TALLY_PAGES]) {
       expect(toolBySlug.has(t.opens!), `${t.slug} opens ${t.opens}`).toBe(true);
       expect(toolBySlug.get(t.opens!)!.opens, `${t.slug} must open a tool, not another landing page`).toBeUndefined();
       if (t.preset) expect(known[t.opens!]?.(t.preset), `${t.slug} preset ${JSON.stringify(t.preset)}`).toBe(true);
