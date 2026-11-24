@@ -174,7 +174,7 @@ export const LEGACY_FONT = /kruti[\s_-]?dev|devlys|chanakya|shivaji|walkman|akru
  * a virama before a vowel sign). PDFs made by some programs store shaped letters in an order or
  * mapping that does not give the original text back; such pages are better read with OCR.
  */
-export function brokenIndicShare(text: string): number {
+export function brokenIndicShare(text: string, opts: { any?: boolean } = {}): number {
   // Dependent vowel signs, virama, nukta and candrabindu/anusvara/visarga of the Indic blocks.
   const SIGN = '[\u093A-\u094F\u0955-\u0957\u0962\u0963\u0981-\u0983\u09BC-\u09CD\u09D7\u09E2\u09E3\u0A01-\u0A03\u0A3C-\u0A4D\u0A70\u0A71\u0A81-\u0A83\u0ABC-\u0ACD\u0AE2\u0AE3\u0B01-\u0B03\u0B3C-\u0B4D\u0B55-\u0B57\u0B82\u0BBE-\u0BCD\u0BD7\u0C00-\u0C04\u0C3E-\u0C56\u0C81-\u0C83\u0CBC-\u0CD6\u0D00-\u0D03\u0D3E-\u0D4D\u0D57]';
   const VIRAMA = '[\u094D\u09CD\u0A4D\u0ACD\u0B4D\u0BCD\u0C4D\u0CCD\u0D4D]';
@@ -184,10 +184,41 @@ export function brokenIndicShare(text: string): number {
   const doubled = new RegExp(`${VOWEL_SIGN}${VOWEL_SIGN}`);
   const viramaThenSign = new RegExp(`${VIRAMA}${VOWEL_SIGN}`);
   const words = text.split(/[\s,.;:()[\]{}"'|/\-]+/).filter((w) => /[ऀ-ൿ]/.test(w));
-  if (words.length < 8) return 0;
+  if (words.length < 8 && !opts.any) return 0;
+  if (!words.length) return 0;
   const bad = words.filter((w) => startsWithSign.test(w) || doubled.test(w) || viramaThenSign.test(w)).length;
   return bad / words.length;
 }
+
+/**
+ * Some PDFs store one Indian-language word in two pieces, the second starting with a vowel sign
+ * or virama ("प्र" + "ौद्योगिकी"), not always in reading order. Each such piece is joined to the
+ * piece it finishes: on the same line, the nearest one starting at or before it. Returns the
+ * indexes of the pieces joined away (removed from `items`), in rising order.
+ */
+export function joinMarkPieces<T>(items: T[], at: (t: T) => { x: number; y: number; size: number; text: string }, join: (into: T, piece: T) => void): number[] {
+  const gone: number[] = [];
+  items.forEach((it, i) => {
+    const p = at(it);
+    if (!/^\p{M}/u.test(p.text)) return;
+    let best = -1;
+    items.forEach((o, j) => {
+      if (j === i || gone.includes(j)) return;
+      const q = at(o);
+      if (/^\p{M}/u.test(q.text) || Math.abs(q.y - p.y) > p.size * 0.3 || q.x > p.x + 1) return;
+      if (best < 0 || q.x > at(items[best]).x) best = j;
+    });
+    if (best < 0) return;
+    join(items[best], it);
+    gone.push(i);
+  });
+  gone.sort((a, b) => a - b);
+  for (let n = gone.length - 1; n >= 0; n--) items.splice(gone[n], 1);
+  return gone;
+}
+
+/** Whether any Indian-script word of `text` has its letters in an impossible order. */
+export const hasBrokenIndic = (text: string) => brokenIndicShare(text, { any: true }) > 0;
 
 /**
  * How closely two readings of the same Indian-language text agree (0–1): shared pairs of

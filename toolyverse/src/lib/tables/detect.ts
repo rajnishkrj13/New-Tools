@@ -316,7 +316,13 @@ function ruledTables(p: PageInput, rule: HV, used: Set<Word>): Table[] {
     let method: Method = p.scanned ? 'scan-ruled' : 'ruled';
     const notes: string[] = [];
     // Only column lines drawn: a grid row holds several text lines that line up across columns.
-    const split = splitTallRows(rows, bucket, nc, (r, c) => anchor.get(idx(r, c))!, idx);
+    // A row is only split when it is far taller than a one-line row: a ruled row whose cells wrap
+    // onto two lines (with a value centred between them) stays one row.
+    const wordSize = median(inside.map((w) => w.size)) || 10;
+    const unit = Math.min(...ys.slice(1).map((y, i) => y - ys[i]), wordSize * 1.8);
+    // The first of several grid rows is the heading: its lines are one heading, however tall.
+    const tall = ys.slice(1).map((y, i) => y - ys[i] >= unit * 2.8 && !(i === 0 && nr > 1));
+    const split = splitTallRows(rows, bucket, nc, (r, c) => anchor.get(idx(r, c))!, idx, tall);
     if (split) {
       rows = split;
       method = p.scanned ? 'scan-ruled' : 'ruled-partial';
@@ -346,7 +352,7 @@ function ruledTables(p: PageInput, rule: HV, used: Set<Word>): Table[] {
  * A ruled table that draws only column lines (or an outer box): each grid row holds many text
  * lines. When those lines line up across columns, each becomes a row of its own.
  */
-function splitTallRows(rows: Cell[][], bucket: Map<number, Word[]>, nc: number, anchorOf: (r: number, c: number) => { r: number; c: number; rs: number; cs: number }, idx: (r: number, c: number) => number): Cell[][] | null {
+function splitTallRows(rows: Cell[][], bucket: Map<number, Word[]>, nc: number, anchorOf: (r: number, c: number) => { r: number; c: number; rs: number; cs: number }, idx: (r: number, c: number) => number, tall: boolean[]): Cell[][] | null {
   let changed = false;
   const out: Cell[][] = [];
   rows.forEach((row, r) => {
@@ -358,7 +364,7 @@ function splitTallRows(rows: Cell[][], bucket: Map<number, Word[]>, nc: number, 
     }
     const lines = textLines(all.map((x) => x.w));
     const multi = lines.filter((l) => new Set(l.words.map((w) => all.find((x) => x.w === w)!.c)).size >= 2).length;
-    if (lines.length < 3 || multi < 2 || row.some((x) => x.rowSpan > 1)) {
+    if (!tall[r] || lines.length < 3 || multi < 2 || row.some((x) => x.rowSpan > 1)) {
       out.push(row);
       return;
     }
@@ -413,9 +419,13 @@ function alignedTables(p: PageInput, free: Word[], regionsToSkip: Box[]): Table[
   return tables;
 }
 
+/** A list item's marker: "a)", "(iv)", "ii.", "3.", "2.1)", a bullet or a dash. */
+const LIST_MARKER = /^(\(?([a-z]{1,2}|[ivxlc]{1,6}|\d{1,3}(\.\d{1,3})*)[.)]\)?|[•●▪■◦○➢►✓\-–*])$/i;
+
 function buildAligned(p: PageInput, lines: Line[], chunks: Chunk[][]): Table | null {
   const multiIdx = chunks.map((c, k) => (c.length >= 2 ? k : -1)).filter((k) => k >= 0);
-  if (multiIdx.length < 2) return null;
+  // Two lines that happen to line up are not enough to call it a table.
+  if (multiIdx.length < 3) return null;
   const all = chunks.flat();
   const x0 = Math.floor(Math.min(...all.map((c) => c.box.x0)));
   const x1 = Math.ceil(Math.max(...all.map((c) => c.box.x1)));
@@ -453,6 +463,17 @@ function buildAligned(p: PageInput, lines: Line[], chunks: Chunk[][]): Table | n
     return texts.reduce((a, b) => a + b, 0) / Math.max(1, texts.length);
   };
   if (cols.length === 2 && lines.length > 6 && avgLen(0) > 28 && avgLen(1) > 28) return null;
+  // A column of list markers ("a)", "ii.", "3.", "•") beside running text is a list, not a table.
+  const firstCol = multiIdx.flatMap((k) => chunks[k].filter((c) => overlapCol(c.box, cols) === 0).map((c) => c.text.trim()));
+  const markers = firstCol.filter((t) => LIST_MARKER.test(t)).length;
+  if (cols.length <= 3 && firstCol.length && markers / firstCol.length >= 0.8 && avgLen(cols.length - 1) > 25) return null;
+  // Justified running text has narrow rivers of space that can line up for a few lines: narrow
+  // gaps between pieces of ordinary words (not figures) are a paragraph, not columns.
+  const size = median(lines.map((l) => l.size)) || 10;
+  const gaps = cols.slice(1).map((c, g) => c[0] - cols[g][1]);
+  const pieces = multiIdx.flatMap((k) => chunks[k].map((c) => c.text));
+  const wordy = pieces.reduce((a, t) => a + t.length, 0) / Math.max(1, pieces.length) > 14 && pieces.filter((t) => /\d/.test(t)).length / Math.max(1, pieces.length) < 0.3;
+  if (wordy && gaps.every((g) => g < size * 1.4)) return null;
 
   const nc = cols.length;
   const raw: { cells: Cell[]; line: Line; multi: boolean }[] = [];
@@ -597,10 +618,42 @@ function joinContinuations(rows: Cell[][], lines?: Line[]): Cell[][] {
 
 // ---- Page ------------------------------------------------------------------------------------
 
+/**
+ * A frame drawn round the whole page (a page border): four lines near the page edges, each
+ * running along most of its side. It is decoration, not a table.
+ */
+export function pageFrame(p: Pick<PageInput, 'segments' | 'width' | 'height'>): { box: Box; segments: Segment[] } | null {
+  const { width: W, height: H } = p;
+  const near = 0.12;
+  const hs = p.segments.filter((s) => Math.abs(s.y1 - s.y0) < 1.5 && Math.abs(s.x1 - s.x0) > W * 0.8);
+  const vs = p.segments.filter((s) => Math.abs(s.x1 - s.x0) < 1.5 && Math.abs(s.y1 - s.y0) > H * 0.8);
+  const top = hs.filter((s) => s.y0 < H * near).sort((a, b) => a.y0 - b.y0)[0];
+  const bottom = hs.filter((s) => s.y0 > H * (1 - near)).sort((a, b) => b.y0 - a.y0)[0];
+  const left = vs.filter((s) => s.x0 < W * near).sort((a, b) => a.x0 - b.x0)[0];
+  const right = vs.filter((s) => s.x0 > W * (1 - near)).sort((a, b) => b.x0 - a.x0)[0];
+  if (!top || !bottom || !left || !right) return null;
+  const box = { x0: left.x0, y0: top.y0, x1: right.x0, y1: bottom.y0 };
+  // Lines of the frame, including doubled ones drawn a point or two apart.
+  const onFrame = (s: Segment) =>
+    (Math.abs(s.y1 - s.y0) < 1.5 && Math.abs(s.x1 - s.x0) > W * 0.8 && (Math.abs(s.y0 - box.y0) < 6 || Math.abs(s.y0 - box.y1) < 6)) ||
+    (Math.abs(s.x1 - s.x0) < 1.5 && Math.abs(s.y1 - s.y0) > H * 0.8 && (Math.abs(s.x0 - box.x0) < 6 || Math.abs(s.x0 - box.x1) < 6));
+  return { box, segments: p.segments.filter((s) => !onFrame(s)) };
+}
+
 export function detectTables(p: PageInput, opts: DetectOptions = {}): { tables: Table[]; free: Word[] } {
   const mode = opts.mode ?? 'auto';
   const used = new Set<Word>();
-  const ruled = mode === 'aligned' ? [] : ruledTables(p, rulings(p.segments), used);
+  const frame = pageFrame(p);
+  if (frame) p = { ...p, segments: frame.segments };
+  // Drawn lines first; edges of shading only make tables where no drawn lines do (a table
+  // marked out by shaded rows), never extra rows inside a ruled one.
+  const hard = p.segments.filter((s) => !s.soft);
+  let ruled = mode === 'aligned' ? [] : ruledTables({ ...p, segments: hard }, rulings(hard), used);
+  if (mode !== 'aligned' && hard.length !== p.segments.length) {
+    const inside = (s: Segment) => ruled.some((t) => Math.min(s.x0, s.x1) >= t.box.x0 - 3 && Math.max(s.x0, s.x1) <= t.box.x1 + 3 && Math.min(s.y0, s.y1) >= t.box.y0 - 3 && Math.max(s.y0, s.y1) <= t.box.y1 + 3);
+    const rest = p.segments.filter((s) => s.soft && !inside(s)).concat(hard.filter((s) => !inside(s)));
+    if (rest.some((s) => s.soft)) ruled = [...ruled, ...ruledTables({ ...p, segments: rest }, rulings(rest), used)];
+  }
   const free = p.words.filter((w) => !used.has(w));
   const aligned = mode === 'ruled' ? [] : alignedTables(p, free, ruled.map((t) => t.box));
   for (const t of aligned) for (const w of free) if (center(w.box).y >= t.box.y0 && center(w.box).y <= t.box.y1 && center(w.box).x >= t.box.x0 - 1 && center(w.box).x <= t.box.x1 + 1) used.add(w);

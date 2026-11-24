@@ -27,6 +27,8 @@ export interface Segment {
   y0: number;
   x1: number;
   y1: number;
+  /** An edge of a filled box (cell shading), not a drawn line: weaker evidence of a table edge. */
+  soft?: boolean;
 }
 
 export interface Cell {

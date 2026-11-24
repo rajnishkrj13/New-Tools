@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { zipStore } from '@editor/engines/PdfTools';
 import { isPasswordError, openPdf, type PdfDoc } from '@/lib/pdf/render';
 import type { PageIn, PageOut, Span } from '@/lib/pdf/word/layout';
-import type { Table } from '@/lib/tables/types';
+import type { Table, Word } from '@/lib/tables/types';
 import { languageByCode, type Script } from '@/lib/lang';
 import { stopOcr } from '@/lib/ocr';
 import { Bench, FileDrop, Notice, Segmented, baseName, download, formatSize, type ToolProps } from './kit';
@@ -66,15 +66,15 @@ export default function PdfToWord(props: ToolProps) {
     }
     try {
       const { readPage } = await import('@/lib/pdf/word/extract');
-      const { readDigitalPage, readScannedPage, readTextPage } = await import('@/lib/tables/pdf');
+      const { readDigitalPage, readScannedPage, readTextPage, patchIndic } = await import('@/lib/tables/pdf');
       const indicCheck = { checked: 0 };
-      const { detectTables } = await import('@/lib/tables/detect');
-      const { layoutPage, bodySize, takeRunningHeads } = await import('@/lib/pdf/word/layout');
+      const { detectTables, pageFrame } = await import('@/lib/tables/detect');
+      const { layoutPage, bodySize, takeRunningHeads, markLines } = await import('@/lib/pdf/word/layout');
       const { buildDocx } = await import('@/lib/pdf/word/docx');
       const models = langs === 'auto' ? 'auto' : [...new Set(['eng', ...langs.map((c) => languageByCode.get(c)?.model).filter((m): m is string => !!m)])];
       const warnings: string[] = [];
       if (langs !== 'auto') for (const c of langs) if (languageByCode.get(c)?.note) warnings.push(`${languageByCode.get(c)!.name}: ${languageByCode.get(c)!.note}`);
-      const pages: { page: PageIn; tables: Table[] }[] = [];
+      const pages: { page: PageIn; tables: Table[]; frame?: { x0: number; y0: number; x1: number; y1: number } }[] = [];
       const rotations: number[] = [];
       const scripts = new Set<Script>();
       let ocrPages = 0;
@@ -82,23 +82,24 @@ export default function PdfToWord(props: ToolProps) {
       for (let i = 0; i < doc.numPages; i++) {
         if (signal.aborted) throw new Error('Stopped.');
         report(`Analysing page ${i + 1} of ${doc.numPages}`, i / doc.numPages);
-        const digital = await readDigitalPage(doc, i);
+        let digital = await readDigitalPage(doc, i);
         digital.scripts.forEach((s) => scripts.add(s));
         if (digital.legacyFonts.length && mode !== 'ocr') warnings.push(`Page ${i + 1} uses an old non-Unicode font (${digital.legacyFonts.slice(0, 2).join(', ')}); its Indian-language text comes out as Latin letters. Choose the OCR mode and the language for Unicode text.`);
-        let scanned = ocrAllowed && (mode === 'ocr' || digital.chars < 12);
-        let ocrRead: Awaited<ReturnType<typeof readScannedPage>> | null = null;
-        // Indian-language text the PDF stored wrongly is read with OCR instead.
+        const scanned = ocrAllowed && (mode === 'ocr' || digital.chars < 12);
+        // Indian-language text the PDF stored wrongly: those words are read from the page with OCR,
+        // the rest of the page (fonts, colours, tables, lines) stays as the PDF has it.
+        let ocrWords: Word[] | undefined;
         if (!scanned && ocrAllowed && digital.chars >= 12) {
-          const checked = await readTextPage(doc, i, digital, indicCheck, { models, onProgress: (f) => report(`Checking the text of page ${i + 1} with OCR: ${Math.round(f * 100)}%`, (i + f) / doc.numPages) }).catch(() => ({ read: digital, reason: undefined }));
-          if (checked.read !== digital) {
-            scanned = true;
-            ocrRead = checked.read;
+          const checked = await readTextPage(doc, i, digital, indicCheck, { models, onProgress: (f) => report(`Checking the text of page ${i + 1} with OCR: ${Math.round(f * 100)}%`, (i + f) / doc.numPages) }).catch(() => ({ read: digital, reason: undefined, ocr: undefined }));
+          if (checked.ocr) {
+            digital = checked.read;
+            ocrWords = checked.ocr;
             if (checked.reason) warnings.push(checked.reason);
           }
         } else if (!ocrAllowed && digital.brokenIndic > 0.05) warnings.push(`Page ${i + 1}: the PDF stores its Indian-language text with letters out of order; check the text, as OCR is switched off.`);
         if (scanned) {
           report(`Reading page ${i + 1} of ${doc.numPages} with OCR`, i / doc.numPages);
-          const sp = ocrRead ?? await readScannedPage(doc, i, { models, onProgress: (f) => report(`Reading page ${i + 1} of ${doc.numPages} with OCR: ${Math.round(f * 100)}%`, (i + f) / doc.numPages) });
+          const sp = await readScannedPage(doc, i, { models, onProgress: (f) => report(`Reading page ${i + 1} of ${doc.numPages} with OCR: ${Math.round(f * 100)}%`, (i + f) / doc.numPages) });
           ocrPages++;
           sp.scripts.forEach((s) => scripts.add(s));
           if (sp.ocr?.rotated) warnings.push(`Page ${i + 1} was scanned ${sp.ocr.rotated === 180 ? 'upside down' : 'sideways'}; it was turned upright.`);
@@ -114,22 +115,23 @@ export default function PdfToWord(props: ToolProps) {
           report(`Reading text and pictures on page ${i + 1}`, (i + 0.5) / doc.numPages);
           const rp = await readPage(doc, i, { graphics: mode === 'layout', mask: tables.map((t) => t.box), pictures: mode !== 'tables' });
           if (rp.hiddenText) rp.images = rp.images.filter((img) => img.graphics || img.w * img.h < rp.width * rp.height * 0.8);
-          // Underlined text: a thin line just under the baseline, about as wide as the text.
-          const hs = digital.segments.filter((s) => Math.abs(s.y1 - s.y0) < 1.2);
-          for (const s of rp.spans) {
-            const under = hs.find((h) => Math.min(h.x0, h.x1) <= s.x + s.w * 0.15 && Math.max(h.x0, h.x1) >= s.x + s.w * 0.85 && Math.abs(h.x1 - h.x0) < s.w * 1.8 + 6 && h.y0 >= s.y - 0.5 && h.y0 <= s.y + s.size * 0.35);
-            if (under) s.underline = true;
+          if (ocrWords) {
+            const n = patchIndic(rp.spans, ocrWords, (sp) => ({ text: sp.str, box: { x0: sp.x, y0: sp.y - sp.size * 0.85, x1: sp.x + sp.w, y1: sp.y + sp.size * 0.25 } }), (sp, t) => (sp.str = t));
+            if (n) ocrPages++;
           }
-          pages.push({ page: rp, tables });
+          // Underlines, and blanks to fill in drawn as lines (outside the tables).
+          markLines(rp, digital.segments, tables.map((t) => t.box), mode !== 'layout');
+          // A frame round the page becomes a page border (in the picture of the page's drawings otherwise).
+          pages.push({ page: rp, tables, frame: mode === 'layout' ? undefined : pageFrame(digital)?.box });
           rotations.push(0);
         }
       }
       if (signal.aborted) throw new Error('Stopped.');
       report('Writing the Word file', 0.98);
-      const heads = mode === 'tables' ? {} : takeRunningHeads(pages.map((p) => p.page));
+      const heads = mode === 'tables' ? { headers: [], footers: [] } : takeRunningHeads(pages.map((p) => p.page));
       const body = bodySize(pages.map((p) => p.page));
-      const outs = pages.map((p) => layoutPage(p.page, body, { tables: p.tables, editable: mode !== 'layout' && mode !== 'ocr' }));
-      const docx = buildDocx(outs, { title: baseName(job.file.name), ...heads });
+      const outs = pages.map((p) => layoutPage(p.page, body, { tables: p.tables, editable: mode !== 'layout' && mode !== 'ocr', frame: p.frame }));
+      const docx = buildDocx(outs, { title: baseName(job.file.name), headers: heads.headers, footers: heads.footers });
       report('Checking the Word file', 0.99);
       await checkDocx(docx);
       if (ocrPages) stopOcr();
@@ -139,7 +141,7 @@ export default function PdfToWord(props: ToolProps) {
         pages: outs,
         rotations,
         warnings,
-        stats: { pages: doc.numPages, tables: pages.reduce((n, p) => n + p.tables.length, 0), pictures: outs.reduce((n, p) => n + p.images.filter((i) => !i.graphics).length, 0), ocrPages, lowWords, scripts: [...scripts], header: !!heads.header, footer: !!heads.footer },
+        stats: { pages: doc.numPages, tables: pages.reduce((n, p) => n + p.tables.length, 0), pictures: outs.reduce((n, p) => n + p.images.filter((i) => !i.graphics).length, 0), ocrPages, lowWords, scripts: [...scripts], header: heads.headers.length > 0, footer: heads.footers.length > 0 },
       };
     } catch (e) {
       void doc.destroy();

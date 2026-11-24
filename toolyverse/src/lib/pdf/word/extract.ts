@@ -6,6 +6,7 @@
 import { openPdf, renderPage, type PdfDoc } from '../render';
 import type { PageImage, PageIn, Span } from './layout';
 import { wordFont } from './layout';
+import { joinMarkPieces } from '../../lang';
 
 type PdfPage = Awaited<ReturnType<PdfDoc['getPage']>>;
 type M = [number, number, number, number, number, number];
@@ -155,9 +156,16 @@ export async function readPage(doc: PdfDoc, index: number, opts: ReadOptions = {
       f = { family: w.family, bold: w.bold || !!obj?.bold || !!obj?.black, italic: w.italic || !!obj?.italic };
       fonts.set(it.fontName, f);
     }
-    spans.push({ str: it.str, x: m[4], y: m[5], w: it.width * (Math.hypot(m[0], m[1]) / Math.max(1e-6, Math.hypot(it.transform[0], it.transform[1]))) || it.width, size, font: f.family, bold: f.bold, italic: f.italic });
+    const width = it.width * (Math.hypot(m[0], m[1]) / Math.max(1e-6, Math.hypot(it.transform[0], it.transform[1]))) || it.width;
+    spans.push({ str: it.str, x: m[4], y: m[5], w: width, size, font: f.family, bold: f.bold, italic: f.italic });
     starts.push(start);
   }
+  joinMarkPieces(spans, (s) => ({ x: s.x, y: s.y, size: s.size, text: s.str }), (into, s) => {
+    into.str += s.str;
+    into.w = Math.max(into.x + into.w, s.x + s.w) - into.x;
+  }).forEach((k, n) => {
+    starts.splice(k - n, 1);
+  });
 
   // Walk the drawing instructions for pictures, text colours and whether the text is visible.
   const images: PageImage[] = [];
@@ -212,7 +220,7 @@ export async function readPage(doc: PdfDoc, index: number, opts: ReadOptions = {
   // Lines, boxes, table borders and coloured bands: one picture behind the text.
   if (opts.graphics !== false)
     try {
-      const layer = await graphicsLayer(page, vp.width, opts.mask ?? []);
+      const layer = await graphicsLayer(page, vp.width, opts.mask ?? [], spans);
       if (layer) images.unshift(layer);
     } catch {
       // Without it the text and pictures still convert.
@@ -249,7 +257,7 @@ export async function readPage(doc: PdfDoc, index: number, opts: ReadOptions = {
  * Draws the page with text and pictures switched off, leaving what is drawn with lines and fills.
  * Returns that as a picture cropped to where something was drawn, or null for a blank result.
  */
-async function graphicsLayer(page: PdfPage, pageWidth: number, mask: ReadOptions['mask'] & object): Promise<PageImage | null> {
+async function graphicsLayer(page: PdfPage, pageWidth: number, mask: ReadOptions['mask'] & object, spans: Span[] = []): Promise<PageImage | null> {
   if (typeof document === 'undefined') return null;
   const scale = Math.min(2, 2400 / pageWidth);
   const vp = page.getViewport({ scale });
@@ -267,6 +275,9 @@ async function graphicsLayer(page: PdfPage, pageWidth: number, mask: ReadOptions
   // Tables written as Word tables get Word borders; their PDF lines are left out of the picture.
   ctx.fillStyle = '#ffffff';
   for (const m of mask) ctx.fillRect(m.x0 * scale - 3, m.y0 * scale - 3, (m.x1 - m.x0) * scale + 6, (m.y1 - m.y0) * scale + 6);
+  // Text drawn as shapes (Type 3 fonts, or fonts the browser could not load) would show twice:
+  // the area of each piece of text is cleared, down to just above its underline.
+  for (const sp of spans) if (sp.str.trim()) ctx.fillRect(sp.x * scale, (sp.y - sp.size * 0.85) * scale, sp.w * scale, sp.size * 0.95 * scale);
 
   const { width: w, height: h } = canvas;
   const px = ctx.getImageData(0, 0, w, h).data;

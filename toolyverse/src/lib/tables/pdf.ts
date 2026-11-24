@@ -4,9 +4,9 @@
  * ruling lines are found in the page picture. Browser only (pdf.js and canvas).
  */
 import { renderPage, type PdfDoc } from '../pdf/render';
-import { LEGACY_FONT, OSD_SCRIPT, SCRIPT_MODEL, brokenIndicShare, indicAgreement, mainScripts, type Script } from '../lang';
+import { LEGACY_FONT, OSD_SCRIPT, SCRIPT_MODEL, brokenIndicShare, hasBrokenIndic, indicAgreement, joinMarkPieces, mainScripts, type Script } from '../lang';
 import type { PageInput } from './detect';
-import type { Segment, Word } from './types';
+import type { Box, Segment, Word } from './types';
 import type { OcrResult, OcrWord } from '../ocr';
 
 type M = [number, number, number, number, number, number];
@@ -143,7 +143,11 @@ export async function readDigitalPage(doc: PdfDoc, index: number): Promise<PageR
         if (h <= 3 && w > 3) out.push({ x0: r.x0, y0: (r.y0 + r.y1) / 2, x1: r.x1, y1: (r.y0 + r.y1) / 2 });
         else if (w <= 3 && h > 3) out.push({ x0: (r.x0 + r.x1) / 2, y0: r.y0, x1: (r.x0 + r.x1) / 2, y1: r.y1 });
         // A white box is a background, not a frame.
-        else if (w > 3 && h > 3 && !white) out.push({ x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y0 }, { x0: r.x0, y0: r.y1, x1: r.x1, y1: r.y1 }, { x0: r.x0, y0: r.y0, x1: r.x0, y1: r.y1 }, { x0: r.x1, y0: r.y0, x1: r.x1, y1: r.y1 });
+        else if (w > 3 && h > 3 && !white) {
+          // A stroked box is drawn lines; a filled one is shading, whose edges may not be cell edges.
+          const soft = !STROKE.has(fn) || undefined;
+          out.push({ x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y0, soft }, { x0: r.x0, y0: r.y1, x1: r.x1, y1: r.y1, soft }, { x0: r.x0, y0: r.y0, x1: r.x0, y1: r.y1, soft }, { x0: r.x1, y0: r.y0, x1: r.x1, y1: r.y1, soft });
+        }
       }
       for (const sub of path)
         for (let k = 1; k < sub.length; k++) {
@@ -162,7 +166,12 @@ export async function readDigitalPage(doc: PdfDoc, index: number): Promise<PageR
   page.cleanup();
   const lines = eraseHidden(segments, erasers);
   const legacyFonts = [...new Set([...fontInfo.values()].map((f) => f.name).filter((n) => LEGACY_FONT.test(n)))];
-  return { page: index, width: vp.width, height: vp.height, words, segments: lines, chars, scripts: mainScripts(allText), legacyFonts, brokenIndic: brokenIndicShare(allText) };
+  // Words some PDFs store in two pieces are joined first, so they are not taken for garbled text.
+  joinMarkPieces(words, (w) => ({ x: w.box.x0, y: w.box.y1, size: w.size, text: w.text }), (into, w) => {
+    into.text += w.text;
+    into.box.x1 = Math.max(into.box.x1, w.box.x1);
+  });
+  return { page: index, width: vp.width, height: vp.height, words, segments: lines, chars, scripts: mainScripts(allText), legacyFonts, brokenIndic: brokenIndicShare(words.map((w) => w.text).join(' ')) };
 }
 
 /** Cuts the parts of lines painted over in white (by a later drawing) out of them. */
@@ -184,7 +193,7 @@ function eraseHidden(segments: Segment[], erasers: { seg: Segment; after: number
       const b = (horiz ? Math.max(e.x0, e.x1) : Math.max(e.y0, e.y1)) + 0.6;
       pieces = pieces.flatMap(([p, q]): [number, number][] => (b <= p || a >= q ? [[p, q]] : ([[p, Math.max(p, a)], [Math.min(q, b), q]] as [number, number][]).filter(([u, v]) => v - u > 1)));
     }
-    for (const [p, q] of pieces) out.push(horiz ? { x0: p, y0: s.y0, x1: q, y1: s.y1 } : { x0: s.x0, y0: p, x1: s.x1, y1: q });
+    for (const [p, q] of pieces) out.push(horiz ? { ...s, x0: p, x1: q } : { ...s, y0: p, y1: q });
   });
   return out;
 }
@@ -486,24 +495,97 @@ export interface IndicCheck {
   distrust?: boolean;
 }
 
+/** Indian-script letters. */
+const INDIC_CHAR = /[ऀ-෿]/;
+
+/**
+ * Indian-language text the PDF stored wrongly, put right from OCR of the same page: each piece
+ * of such text (a word, or a span of the page's text) takes the OCR words printed in its place.
+ * Everything else stays as the PDF has it: English text, figures, fonts, colours and lines.
+ */
+export function patchIndic<T>(items: T[], ocr: Word[], get: (t: T) => { text: string; box: Box }, set: (t: T, text: string) => void): number {
+  const free = new Set(ocr.filter((w) => w.text.trim()));
+  // Where OCR text went in (its boxes, and the boxes of the pieces it replaced).
+  const placed: Box[] = [];
+  const replaced: Box[] = [];
+  const missed: T[] = [];
+  let patched = 0;
+  for (const it of items) {
+    const { text, box } = get(it);
+    if (!INDIC_CHAR.test(text)) continue;
+    const h = box.y1 - box.y0;
+    const inside = [...free].filter((w) => {
+      const cx = (w.box.x0 + w.box.x1) / 2;
+      const cy = (w.box.y0 + w.box.y1) / 2;
+      // English words are never taken from OCR: the PDF's own English text is right.
+      const latinOnly = /[A-Za-z]/.test(w.text) && !INDIC_CHAR.test(w.text);
+      return !latinOnly && cx >= box.x0 - 1.5 && cx <= box.x1 + 1.5 && cy >= box.y0 - h * 0.15 && cy <= box.y1 + h * 0.15;
+    });
+    if (!inside.length) {
+      missed.push(it);
+      continue;
+    }
+    inside.sort((a, b) => a.box.x0 - b.box.x0);
+    for (const w of inside) free.delete(w);
+    // OCR replaces a piece only where it reads with confidence (it misreads large or decorative
+    // letters too), and then when the piece's letters come in an impossible order or differ
+    // from what OCR reads there.
+    const own = text.trim();
+    // Stray figures or marks OCR reads beside a word without any are noise.
+    const read = /[\d\p{P}]/u.test(own) ? inside : inside.filter((w) => INDIC_CHAR.test(w.text));
+    if (!read.length) continue;
+    const sure = read.reduce((a, w) => a + (w.conf ?? 100), 0) / read.length >= 70;
+    // OCR that read much less than the piece holds missed part of it.
+    const letters = (s: string) => s.replace(/[\s\p{P}]/gu, '').length;
+    const partial = letters(read.map((w) => w.text).join('')) < letters(own) * 0.6;
+    if (!sure || partial || (!hasBrokenIndic(own) && indicAgreement(own, read.map((w) => w.text).join(' ')) >= 0.95)) continue;
+    const lead = /^\s/.test(text) ? ' ' : '';
+    const tail = /\s$/.test(text) ? ' ' : '';
+    set(it, lead + read.map((w) => w.text).join(' ') + tail);
+    placed.push(...read.map((w) => w.box));
+    replaced.push(box);
+    patched++;
+  }
+  // A word the PDF split into pieces went to the piece holding its middle; its other pieces
+  // (under the OCR word, or touching the replaced piece on the same line) would repeat bits of
+  // it, so they are emptied.
+  for (const it of missed) {
+    const { text, box } = get(it);
+    const w = Math.max(0.1, box.x1 - box.x0);
+    const h = Math.max(0.1, box.y1 - box.y0);
+    const sameLine = (p: Box) => Math.min(p.y1, box.y1) - Math.max(p.y0, box.y0) > h * 0.4;
+    const under = placed.some((p) => Math.min(p.x1, box.x1) - Math.max(p.x0, box.x0) > w * 0.5 && sameLine(p));
+    const touching = !/\s/.test(text.trim()) && replaced.some((p) => sameLine(p) && box.x0 <= p.x1 + h * 0.25 && box.x1 >= p.x0 - h * 0.25);
+    if (under || touching) set(it, '');
+  }
+  return patched;
+}
+
 /**
  * Reads a page that has real text: its own text, unless that text is Indian-language text the
  * program that made the PDF stored wrongly. Some programs store shaped letters in an order or
  * mapping that does not give the original words back ("बिजली" comes out as "किजली"). Such text is
  * found by impossible letter sequences, or by comparing the first few pages with OCR of the same
- * pages; when it is unreliable, the page is read with OCR instead.
+ * pages; when it is unreliable, the page is read with OCR and its Indian-language words are taken
+ * from there (`ocr` holds the OCR words, for callers that have text of their own to put right).
  */
-export async function readTextPage(doc: PdfDoc, index: number, digital: PageRead, state: IndicCheck, choice: OcrChoice): Promise<{ read: PageRead; reason?: string }> {
+export async function readTextPage(doc: PdfDoc, index: number, digital: PageRead, state: IndicCheck, choice: OcrChoice): Promise<{ read: PageRead; reason?: string; ocr?: Word[] }> {
   const indic = digital.scripts.filter((s) => INDIC.includes(s));
   if (!indic.length) return { read: digital };
   const models = choice.models === 'auto' ? [...new Set(['eng', ...indic.map((s) => SCRIPT_MODEL[s]).filter((m): m is string => !!m)])] : choice.models;
   const ocr = () => readScannedPage(doc, index, { models, onProgress: choice.onProgress });
   const names = indic.join(', ');
+  // The page as the PDF has it, with its Indian-language words read from the print instead.
+  const fixed = (scanned: PageRead) => {
+    const words = digital.words.map((w) => ({ ...w }));
+    patchIndic(words, scanned.words, (w) => ({ text: w.text, box: w.box }), (w, t) => (w.text = t));
+    return { read: { ...digital, words, brokenIndic: 0 }, ocr: scanned.words };
+  };
   if (digital.brokenIndic > 0.05) {
     state.distrust = true;
-    return { read: await ocr(), reason: `Page ${index + 1}: the PDF stores its ${names} text with letters out of order (${Math.round(digital.brokenIndic * 100)}% of words), so the page was read with OCR to get the text right.` };
+    return { ...fixed(await ocr()), reason: `Page ${index + 1}: the PDF stores its ${names} text with letters out of order (${Math.round(digital.brokenIndic * 100)}% of words), so that text was read from the page with OCR.` };
   }
-  if (state.distrust) return { read: await ocr(), reason: `Page ${index + 1}: read with OCR, as this PDF's own ${names} text proved unreliable on an earlier page.` };
+  if (state.distrust) return { ...fixed(await ocr()), reason: `Page ${index + 1}: its ${names} text was read with OCR, as this PDF's own proved unreliable on an earlier page.` };
   if (state.trust || state.checked >= 3) return { read: digital };
   // Check the PDF's own text against OCR of the same page.
   const scanned = await ocr();
@@ -512,7 +594,7 @@ export async function readTextPage(doc: PdfDoc, index: number, digital: PageRead
   // Measured: correct text layers agree with OCR at 0.89–1.0, misstored ones at 0.69–0.80.
   if (agree < 0.85) {
     state.distrust = true;
-    return { read: scanned, reason: `Page ${index + 1}: the PDF's own ${names} text does not match what is printed (only ${Math.round(agree * 100)}% agreement with OCR), so OCR was used for its Indian-language pages.` };
+    return { ...fixed(scanned), reason: `Page ${index + 1}: the PDF's own ${names} text does not match what is printed (only ${Math.round(agree * 100)}% agreement with OCR), so that text was read with OCR.` };
   }
   if (agree >= 0.95) state.trust = true;
   return { read: digital };
