@@ -111,7 +111,16 @@ export interface ReadPage extends PageIn {
 }
 
 /** Text and pictures of one page (index from 0). */
-export async function readPage(doc: PdfDoc, index: number): Promise<ReadPage> {
+export interface ReadOptions {
+  /** Draw the page's lines and boxes as a picture behind the text (layout mode). */
+  graphics?: boolean;
+  /** Areas (tables written as Word tables) left out of that picture. */
+  mask?: { x0: number; y0: number; x1: number; y1: number }[];
+  /** Keep pictures from the PDF. */
+  pictures?: boolean;
+}
+
+export async function readPage(doc: PdfDoc, index: number, opts: ReadOptions = { graphics: true, pictures: true }): Promise<ReadPage> {
   const { OPS, Util } = await import('pdfjs-dist');
   const page = await doc.getPage(index + 1);
   const vp = page.getViewport({ scale: 1 });
@@ -201,11 +210,30 @@ export async function readPage(doc: PdfDoc, index: number): Promise<ReadPage> {
     }
   }
   // Lines, boxes, table borders and coloured bands: one picture behind the text.
+  if (opts.graphics !== false)
+    try {
+      const layer = await graphicsLayer(page, vp.width, opts.mask ?? []);
+      if (layer) images.unshift(layer);
+    } catch {
+      // Without it the text and pictures still convert.
+    }
+  if (opts.pictures === false) images.splice(0, images.length, ...images.filter((i) => i.graphics));
+
+  // Links: text under a link area of the PDF links to the same address.
   try {
-    const layer = await graphicsLayer(page, vp.width);
-    if (layer) images.unshift(layer);
+    const annots = (await page.getAnnotations()) as { subtype?: string; url?: string; rect?: number[] }[];
+    for (const a of annots) {
+      if (a.subtype !== 'Link' || !a.url || !a.rect) continue;
+      const [x0, y0, x1, y1] = vp.convertToViewportRectangle(a.rect);
+      const box = { x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
+      for (const sp of spans) {
+        const cx = sp.x + sp.w / 2;
+        const cy = sp.y - sp.size * 0.3;
+        if (cx >= box.x0 && cx <= box.x1 && cy >= box.y0 - 2 && cy <= box.y1 + 2) sp.link = a.url;
+      }
+    }
   } catch {
-    // Without it the text and pictures still convert.
+    // Links are a nicety; the text converts without them.
   }
 
   // Text colour: the fill colour when the span's first character was drawn (black is the default).
@@ -221,7 +249,7 @@ export async function readPage(doc: PdfDoc, index: number): Promise<ReadPage> {
  * Draws the page with text and pictures switched off, leaving what is drawn with lines and fills.
  * Returns that as a picture cropped to where something was drawn, or null for a blank result.
  */
-async function graphicsLayer(page: PdfPage, pageWidth: number): Promise<PageImage | null> {
+async function graphicsLayer(page: PdfPage, pageWidth: number, mask: ReadOptions['mask'] & object): Promise<PageImage | null> {
   if (typeof document === 'undefined') return null;
   const scale = Math.min(2, 2400 / pageWidth);
   const vp = page.getViewport({ scale });
@@ -236,6 +264,9 @@ async function graphicsLayer(page: PdfPage, pageWidth: number): Promise<PageImag
   ctx.strokeText = () => undefined;
   ctx.drawImage = () => undefined;
   await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  // Tables written as Word tables get Word borders; their PDF lines are left out of the picture.
+  ctx.fillStyle = '#ffffff';
+  for (const m of mask) ctx.fillRect(m.x0 * scale - 3, m.y0 * scale - 3, (m.x1 - m.x0) * scale + 6, (m.y1 - m.y0) * scale + 6);
 
   const { width: w, height: h } = canvas;
   const px = ctx.getImageData(0, 0, w, h).data;

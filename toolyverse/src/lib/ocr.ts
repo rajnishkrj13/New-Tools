@@ -35,10 +35,10 @@ type Worker = {
   terminate: () => Promise<unknown>;
 };
 
-let active: { lang: OcrLang; worker: Promise<Worker> } | null = null;
+let active: { lang: string; worker: Promise<Worker> } | null = null;
 let progress: ((f: number) => void) | null = null;
 
-function workerFor(lang: OcrLang): Promise<Worker> {
+function workerFor(lang: string): Promise<Worker> {
   if (active && active.lang !== lang) {
     const old = active;
     active = null;
@@ -114,6 +114,8 @@ export async function prepareImage(file: Blob, enhance: boolean): Promise<HTMLCa
     let hi = 255;
     for (let acc = 0; lo < 255 && (acc += hist[lo]) < total * 0.01; ) lo++;
     for (let acc = 0; hi > 0 && (acc += hist[hi]) < total * 0.01; ) hi--;
+    // With little text, the darkest 1% is paper, not ink: never stretch from above 100.
+    lo = Math.min(lo, 100);
     const range = Math.max(1, hi - lo);
     for (let i = 0; i < d.length; i += 4) {
       const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / range));
@@ -125,7 +127,7 @@ export async function prepareImage(file: Blob, enhance: boolean): Promise<HTMLCa
 }
 
 /** Reads the text of one prepared image. `onProgress` gets 0–1 while the text is read. */
-export async function recognize(canvas: HTMLCanvasElement, lang: OcrLang, onProgress?: (f: number) => void): Promise<OcrResult> {
+export async function recognize(canvas: HTMLCanvasElement, lang: OcrLang | string, onProgress?: (f: number) => void): Promise<OcrResult> {
   const worker = await workerFor(lang);
   progress = onProgress ?? null;
   try {
@@ -157,4 +159,50 @@ export function tidyText(text: string): string {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+let osdWorker: Promise<Worker & { detect: (image: unknown) => Promise<{ data: OsdResult }> }> | null = null;
+
+interface OsdResult {
+  tesseract_script_id: number | null;
+  script: string | null;
+  script_confidence: number | null;
+  orientation_degrees: number | null;
+  orientation_confidence: number | null;
+}
+
+/**
+ * Tesseract's orientation and script detection (OSD) for a scanned page: which way up it is and
+ * which writing system it uses. Runs the legacy engine, which OSD needs; loaded only when used.
+ * Returns null when the page has too little text to tell.
+ */
+export async function detectScript(canvas: HTMLCanvasElement): Promise<{ script: string; scriptConfidence: number; rotate: number; rotateConfidence: number } | null> {
+  if (!osdWorker) {
+    osdWorker = import('tesseract.js').then(async ({ createWorker }) => {
+      const w = await createWorker('osd', 0, {
+        workerPath: '/ocr/worker.min.js',
+        corePath: '/ocr/core',
+        langPath: '/ocr/lang',
+        gzip: true,
+        workerBlobURL: false,
+        legacyCore: true,
+        legacyLang: true,
+      });
+      return w as unknown as Worker & { detect: (image: unknown) => Promise<{ data: OsdResult }> };
+    });
+    osdWorker.catch(() => (osdWorker = null));
+  }
+  try {
+    const { data } = await (await osdWorker).detect(canvas);
+    if (!data.script) return null;
+    return { script: data.script, scriptConfidence: data.script_confidence ?? 0, rotate: data.orientation_degrees ?? 0, rotateConfidence: data.orientation_confidence ?? 0 };
+  } catch {
+    return null;
+  }
+}
+
+export function stopOsd() {
+  const w = osdWorker;
+  osdWorker = null;
+  w?.then((x) => x.terminate()).catch(() => undefined);
 }

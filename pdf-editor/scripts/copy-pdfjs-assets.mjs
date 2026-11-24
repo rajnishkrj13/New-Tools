@@ -23,10 +23,11 @@ if (existsSync(join(modules, 'tesseract.js'))) {
   mkdirSync(join(ocr, 'core'), { recursive: true });
   mkdirSync(join(ocr, 'lang'), { recursive: true });
   cpSync(join(modules, 'tesseract.js', 'dist', 'worker.min.js'), join(ocr, 'worker.min.js'));
-  for (const core of ['tesseract-core-lstm', 'tesseract-core-simd-lstm', 'tesseract-core-relaxedsimd-lstm']) {
+  // The legacy (non-LSTM) cores run OSD: automatic script and page-rotation detection.
+  for (const core of ['tesseract-core-lstm', 'tesseract-core-simd-lstm', 'tesseract-core-relaxedsimd-lstm', 'tesseract-core', 'tesseract-core-simd', 'tesseract-core-relaxedsimd']) {
     for (const ext of ['.wasm.js', '.js', '.wasm']) cpSync(join(modules, 'tesseract.js-core', core + ext), join(ocr, 'core', core + ext));
   }
-  for (const lang of ['eng', 'hin']) {
+  for (const lang of ['eng', 'hin', 'ben', 'asm', 'guj', 'mar', 'pan', 'ori', 'tam', 'tel', 'kan', 'mal', 'urd', 'san', 'nep', 'snd', 'osd']) {
     cpSync(join(modules, '@tesseract.js-data', lang, '4.0.0_best_int', lang + '.traineddata.gz'), join(ocr, 'lang', lang + '.traineddata.gz'));
   }
   console.log('[copy-pdfjs-assets] copied the OCR engine and language data to public/ocr');
