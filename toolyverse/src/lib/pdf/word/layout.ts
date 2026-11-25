@@ -106,6 +106,8 @@ export interface PageIn {
   height: number;
   spans: Span[];
   images: PageImage[];
+  /** Coloured areas painted on the page (shading), in drawing order. */
+  fills?: { box: Box; color: string }[];
 }
 
 export interface Run {
@@ -146,6 +148,8 @@ export interface TableItem {
   cells?: (CellStyle | null)[][];
   /** Space between the cell edge and its text, left and right, in points. */
   pad?: number;
+  /** Background colour (RRGGBB) of each cell, where the PDF shades it. */
+  shades?: (string | null)[][];
 }
 
 export interface CellStyle {
@@ -168,6 +172,13 @@ export interface Para {
   line: number;
   /** Distance between the lines of the paragraph in the PDF (0 when it has one line). */
   pitch?: number;
+  /** Where the paragraph's text sits on the PDF page. */
+  area?: Box;
+  /** A picture set in the text (instead of floating on the page). */
+  image?: PageImage;
+  /** Background colour (RRGGBB) and a border round it, from a shaded or boxed area of the page. */
+  shade?: string;
+  border?: boolean;
   tabs?: Tab[];
   /** 1–3 for headings, which Word lists in its navigation pane. */
   heading?: 1 | 2 | 3;
@@ -198,6 +209,8 @@ export interface PageOut {
   /** Distance of the header from the top edge and of the footer from the bottom edge. */
   headerAt?: number;
   footerAt?: number;
+  /** Lowest point of the page's text and tables on the PDF page. */
+  contentBottom?: number;
 }
 
 export interface LayoutOptions {
@@ -206,6 +219,8 @@ export interface LayoutOptions {
   editable?: boolean;
   /** The page's frame (a page border), when it has one. */
   frame?: { x0: number; y0: number; x1: number; y1: number };
+  /** Boxes drawn round text (not tables): their paragraphs get a border. */
+  boxes?: Box[];
 }
 
 interface Seg {
@@ -416,9 +431,40 @@ export function layoutPage(page: PageIn, body = 11, opts: LayoutOptions = {}): P
   // Right-aligned lines keep the PDF's right edge, inside Word's slightly wider margin (centred ones keep the room).
   const extra = page.width - right - pdfR;
   if (extra > 0) for (const p of paras) if (!p.table && p.align === 'right') p.right += extra;
+  // Boxed and shaded areas: their paragraphs get Word's paragraph border or shading, indented to
+  // the area's edges (Word draws both round the paragraph, between its indents).
+  const wordL = left;
+  const wordR = page.width - right;
+  const tableBoxes = tables.map((t) => t.box);
+  const overlaps = (a: Box, b: Box) => Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0);
+  const same = (a: Box, b: Box) => Math.abs(a.x0 - b.x0) < 4 && Math.abs(a.y0 - b.y0) < 4 && Math.abs(a.x1 - b.x1) < 4 && Math.abs(a.y1 - b.y1) < 4;
+  const fills = (page.fills ?? []).filter((fl) => !tableBoxes.some((t) => overlaps(t, fl.box)));
+  const panels: { box: Box; border: boolean; shade?: string }[] = [
+    ...(opts.boxes ?? []).map((bx) => ({ box: bx, border: true, shade: fills.filter((fl) => same(fl.box, bx)).pop()?.color })),
+    ...fills.filter((fl) => !(opts.boxes ?? []).some((bx) => overlaps(bx, fl.box))).map((fl) => ({ box: fl.box, border: false, shade: fl.color })),
+  ];
+  if (editable)
+    for (const pn of panels)
+      for (const p of paras) {
+        if (p.table || !p.area) continue;
+        const cx = (p.area.x0 + p.area.x1) / 2;
+        const cy = (p.area.y0 + p.area.y1) / 2;
+        // The paragraph sits in the area, and the area is about its size or larger (not a highlighted word).
+        if (cx < pn.box.x0 || cx > pn.box.x1 || cy < pn.box.y0 || cy > pn.box.y1 || p.area.y1 - p.area.y0 > pn.box.y1 - pn.box.y0 + 4) continue;
+        if (pn.border) p.border = true;
+        if (pn.shade) p.shade = pn.shade;
+        // Word joins paragraphs into one box only when their indents are the same: all take the
+        // area's edges (text set further in keeps that as its first-line indent).
+        const inner = p.align === 'left' ? Math.max(0, p.left + Math.max(0, p.first) - (pn.box.x0 - wordL + 2)) : 0;
+        p.left = Math.max(0, pn.box.x0 - wordL + 2);
+        p.right = Math.max(0, wordR - pn.box.x1 + 2);
+        p.first = p.align === 'left' ? Math.min(inner, Math.max(0, pn.box.x1 - pn.box.x0 - 40)) : 0;
+      }
   const f = opts.frame;
   const border = f ? { top: f.y0, left: f.x0, bottom: page.height - f.y1, right: page.width - f.x1, width: 0.75, color: '000000' } : undefined;
-  return { width: page.width, height: page.height, margin, paras, images: page.images, exact: !editable, columns: columns && paras.length > columns.start ? columns : undefined, border };
+  const contentBottom = Math.max(0, ...lines.map((l) => l.y + l.size * 0.25), ...tables.map((t) => t.box.y1));
+  const inText = new Set(paras.map((p) => p.image).filter(Boolean));
+  return { width: page.width, height: page.height, margin, paras, images: page.images.filter((img) => !inText.has(img)), exact: !editable, columns: columns && paras.length > columns.start ? columns : undefined, border, contentBottom };
 }
 
 /** Paragraphs (and tables) of one flow of lines between two edges. */
@@ -455,7 +501,10 @@ function layoutFlow(lines: Line[], colL: number, colR: number, tables: Table[], 
   let cursor = start;
   for (const it of items) {
     if (it.image) {
-      cursor = Math.max(cursor, it.image.y + it.image.h);
+      // A wide picture goes in the text, in a paragraph of its own: what follows comes below it.
+      const img = it.image;
+      paras.push({ runs: [], align: 'left', left: Math.max(0, img.x - colL), right: 0, first: 0, before: Math.max(0, img.y - cursor), line: 0, size: body, image: img, area: { x0: img.x, y0: img.y, x1: img.x + img.w, y1: img.y + img.h } });
+      cursor = Math.max(cursor, img.y + img.h);
       continue;
     }
     if (it.table) {
@@ -479,7 +528,9 @@ function layoutFlow(lines: Line[], colL: number, colR: number, tables: Table[], 
     cursor = Math.max(cursor, paraTop) + n * line;
 
     // Editable text keeps Word's own line spacing, set to the PDF's line pitch where it shows (two lines or more).
-    const para: Para = { runs: [], align: 'left', left: 0, right: 0, first: 0, before, line: editable ? 0 : line, size, pitch: n > 1 ? pitch : 0 };
+    const last = b.lines[n - 1];
+    const area = { x0: Math.min(...b.lines.map((l) => l.x)), y0: first.y - first.size * 0.8, x1: Math.max(...b.lines.map((l) => l.right)), y1: last.y + last.size * 0.25 };
+    const para: Para = { runs: [], align: 'left', left: 0, right: 0, first: 0, before, line: editable ? 0 : line, size, pitch: n > 1 ? pitch : 0, area };
     if (first.rtl) para.rtl = true;
     if (b.tabbed) {
       const segs = first.segs;
@@ -638,7 +689,21 @@ function tableItem(t: Table, colL: number, page: PageIn): TableItem {
   );
   // Cell padding as the PDF has it (Word's own is wider and makes text wrap sooner).
   const pad = ruled && gaps.length ? Math.max(0.5, Math.min(5, median(gaps))) : 2.85;
-  return { table: t, widths, heights, ruled, size, font, left: Math.max(0, t.box.x0 - colL), cells, pad };
+  // Cell shading: the colour painted over most of the cell (the last one painted wins).
+  const shades = t.rows.map((row) =>
+    row.map((c) => {
+      if (c.hidden || !c.box) return null;
+      const b = c.box;
+      const cellArea = Math.max(1, (b.x1 - b.x0) * (b.y1 - b.y0));
+      const over = (page.fills ?? []).filter((fl) => {
+        const w = Math.min(fl.box.x1, b.x1) - Math.max(fl.box.x0, b.x0);
+        const h = Math.min(fl.box.y1, b.y1) - Math.max(fl.box.y0, b.y0);
+        return w > 0 && h > 0 && (w * h) / cellArea >= 0.6;
+      });
+      return over.length ? over[over.length - 1].color : null;
+    }),
+  );
+  return { table: t, widths, heights, ruled, size, font, left: Math.max(0, t.box.x0 - colL), cells, pad, shades: shades.some((r) => r.some(Boolean)) ? shades : undefined };
 }
 
 /** Whether `line` carries on the paragraph made of `prev` lines. */

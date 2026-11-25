@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { zipStore } from '@editor/engines/PdfTools';
 import { isPasswordError, openPdf, type PdfDoc } from '@/lib/pdf/render';
 import type { PageIn, PageOut, Span } from '@/lib/pdf/word/layout';
-import type { Table, Word } from '@/lib/tables/types';
+import type { Box, Table, Word } from '@/lib/tables/types';
 import { languageByCode, type Script } from '@/lib/lang';
 import { stopOcr } from '@/lib/ocr';
 import { Bench, FileDrop, Notice, Segmented, baseName, download, formatSize, type ToolProps } from './kit';
@@ -68,13 +68,13 @@ export default function PdfToWord(props: ToolProps) {
       const { readPage } = await import('@/lib/pdf/word/extract');
       const { readDigitalPage, readScannedPage, readTextPage, patchIndic } = await import('@/lib/tables/pdf');
       const indicCheck = { checked: 0 };
-      const { detectTables, pageFrame } = await import('@/lib/tables/detect');
+      const { detectTables, pageFrame, textBoxes } = await import('@/lib/tables/detect');
       const { layoutPage, bodySize, takeRunningHeads, markLines } = await import('@/lib/pdf/word/layout');
       const { buildDocx } = await import('@/lib/pdf/word/docx');
       const models = langs === 'auto' ? 'auto' : [...new Set(['eng', ...langs.map((c) => languageByCode.get(c)?.model).filter((m): m is string => !!m)])];
       const warnings: string[] = [];
       if (langs !== 'auto') for (const c of langs) if (languageByCode.get(c)?.note) warnings.push(`${languageByCode.get(c)!.name}: ${languageByCode.get(c)!.note}`);
-      const pages: { page: PageIn; tables: Table[]; frame?: { x0: number; y0: number; x1: number; y1: number } }[] = [];
+      const pages: { page: PageIn; tables: Table[]; frame?: Box; boxes?: Box[] }[] = [];
       const rotations: number[] = [];
       const scripts = new Set<Script>();
       let ocrPages = 0;
@@ -122,7 +122,10 @@ export default function PdfToWord(props: ToolProps) {
           // Underlines, and blanks to fill in drawn as lines (outside the tables).
           markLines(rp, digital.segments, tables.map((t) => t.box), mode !== 'layout');
           // A frame round the page becomes a page border (in the picture of the page's drawings otherwise).
-          pages.push({ page: rp, tables, frame: mode === 'layout' ? undefined : pageFrame(digital)?.box });
+          // Shading, and boxes drawn round text (in layout mode both are in the picture of the drawings).
+          rp.fills = digital.fills;
+          const boxes = mode === 'layout' ? undefined : textBoxes(digital, tables.map((t) => t.box));
+          pages.push({ page: rp, tables, frame: mode === 'layout' ? undefined : pageFrame(digital)?.box, boxes });
           rotations.push(0);
         }
       }
@@ -130,7 +133,7 @@ export default function PdfToWord(props: ToolProps) {
       report('Writing the Word file', 0.98);
       const heads = mode === 'tables' ? { headers: [], footers: [] } : takeRunningHeads(pages.map((p) => p.page));
       const body = bodySize(pages.map((p) => p.page));
-      const outs = pages.map((p) => layoutPage(p.page, body, { tables: p.tables, editable: mode !== 'layout' && mode !== 'ocr', frame: p.frame }));
+      const outs = pages.map((p) => layoutPage(p.page, body, { tables: p.tables, editable: mode !== 'layout' && mode !== 'ocr', frame: p.frame, boxes: p.boxes }));
       const docx = buildDocx(outs, { title: baseName(job.file.name), headers: heads.headers, footers: heads.footers });
       report('Checking the Word file', 0.99);
       await checkDocx(docx);

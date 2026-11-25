@@ -23,6 +23,8 @@ export interface PageRead extends PageInput {
   brokenIndic: number;
   /** For OCR pages: models used and how sure the reading was. */
   ocr?: { models: string[]; confidence: number; script?: string; rotated: number };
+  /** Coloured areas painted on the page (cell and row shading, highlighted boxes), in drawing order. */
+  fills?: { box: Box; color: string }[];
 }
 
 /** Text and drawn lines of a page with real text. */
@@ -78,13 +80,23 @@ export async function readDigitalPage(doc: PdfDoc, index: number): Promise<PageR
   // Lines painted in white (or nearly) over earlier lines: PDF makers hide part of a ruling
   // that way, for instance under a heading cell that spans two rows.
   const erasers: { seg: Segment; after: number }[] = [];
-  const stack: { ctm: M; stroke: number; fill: number }[] = [];
+  const fills: { box: Box; color: string }[] = [];
+  const stack: { ctm: M; stroke: number; fill: number; fillHex: string }[] = [];
   let ctm: M = [1, 0, 0, 1, 0, 0];
   // Brightness (0 black – 1 white) of the stroke and fill colours in force.
   let stroke = 0;
   let fill = 0;
+  let fillHex = '000000';
+  // pdf.js passes a colour as red, green and blue (0–255), in a typed array (or one inside an array).
+  const rgb = (a: unknown[]): unknown[] => Array.from((a.length === 1 && a[0] && typeof a[0] === 'object' ? a[0] : a) as ArrayLike<unknown>);
+  const hex = (a: unknown[]) =>
+    rgb(a)
+      .slice(0, 3)
+      .map((v) => Math.max(0, Math.min(255, Math.round(Number(v) || 0))).toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase();
   const bright = (a: unknown[]) => {
-    const [r, g, b] = a.map(Number);
+    const [r, g, b] = rgb(a).map(Number);
     return [r, g, b].every((v) => Number.isFinite(v)) ? (0.299 * r + 0.587 * g + 0.114 * b) / 255 : 0;
   };
   const STROKE = new Set([OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
@@ -95,19 +107,22 @@ export async function readDigitalPage(doc: PdfDoc, index: number): Promise<PageR
   for (let i = 0; i < ops.fnArray.length; i++) {
     const fn = ops.fnArray[i];
     const args = ops.argsArray[i];
-    if (fn === OPS.save) stack.push({ ctm, stroke, fill });
+    if (fn === OPS.save) stack.push({ ctm, stroke, fill, fillHex });
     else if (fn === OPS.restore) {
       const st = stack.pop();
-      if (st) ({ ctm, stroke, fill } = st);
+      if (st) ({ ctm, stroke, fill, fillHex } = st);
     } else if (fn === OPS.setStrokeRGBColor) stroke = bright(args);
-    else if (fn === OPS.setFillRGBColor) fill = bright(args);
+    else if (fn === OPS.setFillRGBColor) {
+      fill = bright(args);
+      fillHex = hex(args);
+    }
     else if (fn === OPS.transform) ctm = mul(ctm, args as M);
     else if (fn === OPS.paintFormXObjectBegin) {
-      stack.push({ ctm, stroke, fill });
+      stack.push({ ctm, stroke, fill, fillHex });
       if (Array.isArray(args[0]) && args[0].length === 6) ctm = mul(ctm, args[0] as M);
     } else if (fn === OPS.paintFormXObjectEnd) {
       const st = stack.pop();
-      if (st) ({ ctm, stroke, fill } = st);
+      if (st) ({ ctm, stroke, fill, fillHex } = st);
     }
     else if (fn === OPS.constructPath) {
       const [kinds, coords] = args as [number[], number[]];
@@ -156,6 +171,17 @@ export async function readDigitalPage(doc: PdfDoc, index: number): Promise<PageR
           if (Math.abs(a.y - b.y) < 1 || Math.abs(a.x - b.x) < 1) out.push({ x0: a.x, y0: a.y, x1: b.x, y1: b.y });
         }
       if (white) for (const seg of out) erasers.push({ seg, after: segments.length });
+      // Coloured areas (shading): filled boxes, and closed outlines whose corners make a box.
+      if (fn !== OPS.stroke && fn !== OPS.closeStroke && fill <= 0.97) {
+        const boxes = [...rects];
+        for (const sub of path) {
+          const xs = sub.map((p) => p.x);
+          const ys = sub.map((p) => p.y);
+          const square = sub.every((p, k) => k === 0 || Math.abs(p.x - sub[k - 1].x) < 1 || Math.abs(p.y - sub[k - 1].y) < 1);
+          if (sub.length >= 4 && square) boxes.push({ x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) });
+        }
+        for (const r of boxes) if (r.x1 - r.x0 > 3 && r.y1 - r.y0 > 3 && (r.x1 - r.x0) * (r.y1 - r.y0) < area * 0.8) fills.push({ box: r, color: fillHex });
+      }
       rects = [];
       path = [];
     } else if (fn === OPS.endPath) {
@@ -171,7 +197,7 @@ export async function readDigitalPage(doc: PdfDoc, index: number): Promise<PageR
     into.text += w.text;
     into.box.x1 = Math.max(into.box.x1, w.box.x1);
   });
-  return { page: index, width: vp.width, height: vp.height, words, segments: lines, chars, scripts: mainScripts(allText), legacyFonts, brokenIndic: brokenIndicShare(words.map((w) => w.text).join(' ')) };
+  return { page: index, width: vp.width, height: vp.height, words, segments: lines, chars, scripts: mainScripts(allText), legacyFonts, brokenIndic: brokenIndicShare(words.map((w) => w.text).join(' ')), fills };
 }
 
 /** Cuts the parts of lines painted over in white (by a later drawing) out of them. */

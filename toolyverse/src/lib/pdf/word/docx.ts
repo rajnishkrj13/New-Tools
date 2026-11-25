@@ -92,12 +92,16 @@ function paraXml(p: Para, ctx: Ctx, exact: boolean, extra = '', sect = ''): stri
   // gives the PDF's line pitch (single lines keep the natural height).
   const multiple = p.pitch ? Math.max(0.8, Math.min(2.5, p.pitch / (p.size * lineFactor(p.runs[0]?.font)))) : 1;
   // An empty paragraph only holds pictures or the section: it must take no room.
-  const blank = !p.runs.length && !p.table;
+  const blank = !p.runs.length && !p.table && !p.image;
   const spacing = blank
     ? `<w:spacing w:before="${tw(exact ? p.before : Math.min(p.before, 144))}" w:after="0" w:line="20" w:lineRule="exact"/>`
     : exact && p.line ?`<w:spacing w:before="${tw(p.before)}" w:after="0" w:line="${tw(p.line)}" w:lineRule="exact"/>` : `<w:spacing w:before="${tw(Math.min(p.before, 144))}" w:after="0" w:line="${Math.round(240 * multiple)}" w:lineRule="auto"/>`;
   const bidi = p.rtl ? '<w:bidi/>' : '';
-  const ppr = `<w:pPr>${style}${num}${bidi}${tabs}${spacing}${ind}${p.align !== 'left' ? `<w:jc w:val="${p.align}"/>` : ''}${sect}</w:pPr>`;
+  // A boxed or shaded area of the page: Word's paragraph border and shading.
+  const side = (n: string, space: number) => `<w:${n} w:val="single" w:sz="6" w:space="${space}" w:color="000000"/>`;
+  const bdr = p.border ? `<w:pBdr>${side('top', 2)}${side('left', 2)}${side('bottom', 2)}${side('right', 2)}</w:pBdr>` : '';
+  const shd = p.shade ? `<w:shd w:val="clear" w:color="auto" w:fill="${p.shade}"/>` : '';
+  const ppr = `<w:pPr>${style}${num}${bdr}${shd}${bidi}${tabs}${spacing}${ind}${p.align !== 'left' ? `<w:jc w:val="${p.align}"/>` : ''}${sect}</w:pPr>`;
   const brk = p.colBreak ? '<w:r><w:br w:type="column"/></w:r>' : '';
   return `<w:p>${ppr}${extra}${brk}${runsXml(p.runs, ctx, !!p.rtl)}</w:p>`;
 }
@@ -160,7 +164,7 @@ function tableXml(t: TableItem, ctx: Ctx): string {
         : lines
         .map((l) => `<w:p><w:pPr>${rtl ? '<w:bidi/>' : ''}<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>${l ? runsXml([{ text: l, size: t.size, font: t.font, bold: head || !!x.bold, italic: false, low: (x.conf ?? 100) < 60, link: x.link }], ctx, rtl) : ''}</w:p>`)
         .join('');
-      out.push(`<w:tc><w:tcPr><w:tcW w:w="${widths.slice(c, c + span).reduce((a, b) => a + b, 0)}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${x.rowSpan > 1 ? '<w:vMerge w:val="restart"/>' : ''}${style && style.vAlign !== 'top' ? `<w:vAlign w:val="${style.vAlign}"/>` : ''}</w:tcPr>${paras || `<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:rPr><w:sz w:val="${sz}"/></w:rPr></w:r></w:p>`}</w:tc>`);
+      out.push(`<w:tc><w:tcPr><w:tcW w:w="${widths.slice(c, c + span).reduce((a, b) => a + b, 0)}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}${x.rowSpan > 1 ? '<w:vMerge w:val="restart"/>' : ''}${t.shades?.[r]?.[c] ? `<w:shd w:val="clear" w:color="auto" w:fill="${t.shades[r][c]}"/>` : ''}${style && style.vAlign !== 'top' ? `<w:vAlign w:val="${style.vAlign}"/>` : ''}</w:tcPr>${paras || `<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:rPr><w:sz w:val="${sz}"/></w:rPr></w:r></w:p>`}</w:tc>`);
       c += span;
     }
     out.push('</w:tr>');
@@ -273,7 +277,13 @@ export function buildDocx(pages: PageOut[], info: DocxInfo = {}): Uint8Array {
     const h = headers[groupOf(headers, i)];
     const fo = footers[groupOf(footers, i)];
     if (h) p.headerAt = h.edge;
-    if (fo) p.footerAt = fo.edge;
+    if (fo) {
+      p.footerAt = fo.edge;
+      // Text that runs into the footer's place in the PDF would be pushed onto a new page in Word
+      // (its body ends where the footer starts): that page's footer goes just below the text.
+      const footerH = fo.lines.length * fo.size * 1.2;
+      if (p.contentBottom && p.contentBottom > p.height - fo.edge - footerH - 2) p.footerAt = Math.max(2, Math.min(fo.edge, p.height - p.contentBottom - footerH - 3));
+    }
   });
   const startFor = (i: number) => (footers.find((g) => g.from === i && g.start !== undefined) ?? headers.find((g) => g.from === i && g.start !== undefined))?.start;
   let pic = 0;
@@ -300,6 +310,17 @@ export function buildDocx(pages: PageOut[], info: DocxInfo = {}): Uint8Array {
       })
       .join('');
 
+    // Pictures set in the text: each in its own paragraph, at its size.
+    const inline = (img: NonNullable<Para['image']>) => {
+      pic++;
+      const name = `image${pic}.${img.type === 'jpeg' ? 'jpg' : 'png'}`;
+      const rid = `rIdImg${pic}`;
+      media.push({ name: `word/media/${name}`, bytes: img.bytes });
+      ctx.rels.push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${name}"/>`);
+      const cx = emu(img.w);
+      const cy = emu(img.h);
+      return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${pic}" name="Picture ${pic}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${pic}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+    };
     const empty: Para = { runs: [], align: 'left', left: 0, right: 0, first: 0, before: 0, line: 12, size: 11 };
     // A page must end in a paragraph (it carries the section); a table cannot carry it.
     const paras: Para[] = page.paras.length ? [...page.paras] : [empty];
@@ -321,7 +342,7 @@ export function buildDocx(pages: PageOut[], info: DocxInfo = {}): Uint8Array {
       // Two-column pages: the part above the columns ends a one-column section, the columns their own.
       if (cols && i === cols.start - 1) sect = sectXml(page, { heads: sectHeads, start });
       else if (isLast && !lastPage) sect = sectXml(page, cols ? { cols, continuous: cols.start > 0, heads: cols.start > 0 ? '' : sectHeads, start: cols.start > 0 ? undefined : start } : { heads: sectHeads, start });
-      body.push(paraXml(p, ctx, page.exact, i === 0 ? drawings : '', sect));
+      body.push(paraXml(p, ctx, page.exact, (i === 0 ? drawings : '') + (p.image ? inline(p.image) : ''), sect));
     });
   });
 

@@ -619,6 +619,32 @@ function joinContinuations(rows: Cell[][], lines?: Line[]): Cell[][] {
 // ---- Page ------------------------------------------------------------------------------------
 
 /**
+ * Boxes drawn round text (a letterhead, a note): closed rectangles of drawn lines with text
+ * inside, that are neither a table (`skip`) nor the frame round the page.
+ */
+export function textBoxes(p: PageInput, skip: Box[]): Box[] {
+  const frame = pageFrame(p);
+  const { h, v } = rulings((frame?.segments ?? p.segments).filter((s) => !s.soft));
+  const side = (x: number, a: number, b: number) => covered(a, b, v.filter((l) => Math.abs(l.x - x) <= 2).map((l) => [l.y0, l.y1] as [number, number])) >= (b - a) * 0.9;
+  const out: Box[] = [];
+  for (const top of h) {
+    if (top.x1 - top.x0 < 30) continue;
+    for (const bottom of h) {
+      if (bottom.y - top.y < 8 || Math.abs(bottom.x0 - top.x0) > 3 || Math.abs(bottom.x1 - top.x1) > 3) continue;
+      const b = { x0: Math.min(top.x0, bottom.x0), y0: top.y, x1: Math.max(top.x1, bottom.x1), y1: bottom.y };
+      if (!side(b.x0, b.y0, b.y1) || !side(b.x1, b.y0, b.y1)) continue;
+      // A line across the inside makes rows: that is a table (or a stack of boxes), not one box.
+      if (h.some((l) => l.y > b.y0 + 2 && l.y < b.y1 - 2 && l.x0 <= b.x0 + 3 && l.x1 >= b.x1 - 3)) continue;
+      if (skip.some((t) => Math.min(t.x1, b.x1) > Math.max(t.x0, b.x0) && Math.min(t.y1, b.y1) > Math.max(t.y0, b.y0))) continue;
+      if (!p.words.some((w) => center(w.box).x > b.x0 && center(w.box).x < b.x1 && center(w.box).y > b.y0 && center(w.box).y < b.y1)) continue;
+      out.push(b);
+      break;
+    }
+  }
+  return out;
+}
+
+/**
  * A frame drawn round the whole page (a page border): four lines near the page edges, each
  * running along most of its side. It is decoration, not a table.
  */

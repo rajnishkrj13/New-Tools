@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildDocx } from '../src/lib/pdf/word/docx';
 import { layoutPage, markLines, takeRunningHeads, type PageIn, type Span } from '../src/lib/pdf/word/layout';
-import { detectTables, pageFrame } from '../src/lib/tables/detect';
+import { detectTables, pageFrame, textBoxes } from '../src/lib/tables/detect';
 import { patchIndic } from '../src/lib/tables/pdf';
 import { hasBrokenIndic, joinMarkPieces } from '../src/lib/lang';
 import type { Segment, Word } from '../src/lib/tables/types';
@@ -56,6 +56,34 @@ describe('page frame and lines', () => {
     const blank = p.spans.find((s) => /^_+$/.test(s.str));
     expect(blank?.x).toBe(80);
     expect(blank!.str.length).toBeGreaterThan(40);
+  });
+});
+
+describe('boxes and shading', () => {
+  const box = (x0: number, y0: number, x1: number, y1: number): Segment[] => [
+    { x0, y0, x1, y1: y0 },
+    { x0, y0: y1, x1, y1 },
+    { x0, y0, x1: x0, y1 },
+    { x0: x1, y0, x1, y1 },
+  ];
+
+  it('finds a box drawn round text and gives its paragraphs a Word border', () => {
+    const words = [word('INDIAN', 120, 60), word('INSTITUTE', 170, 60), word('Website', 150, 80)];
+    const p = { page: 0, ...A4, words, segments: box(100, 40, 400, 95) };
+    const boxes = textBoxes(p, []);
+    expect(boxes).toEqual([{ x0: 100, y0: 40, x1: 400, y1: 95 }]);
+    const out = layoutPage(page([span('INDIAN INSTITUTE', 120, 60), span('Website', 150, 80)]), 11, { editable: true, boxes });
+    expect(out.paras.every((q) => q.border)).toBe(true);
+    const xml = new TextDecoder().decode(buildDocx([out]));
+    expect(xml).toContain('<w:pBdr>');
+  });
+
+  it('shades table cells and paragraphs with the colour painted under them', () => {
+    const p = page([span('Note: read carefully', 80, 300)]);
+    p.fills = [{ box: { x0: 70, y0: 285, x1: 400, y1: 306 }, color: 'FFFF00' }];
+    const out = layoutPage(p, 11, { editable: true });
+    expect(out.paras[0].shade).toBe('FFFF00');
+    expect(new TextDecoder().decode(buildDocx([out]))).toContain('w:fill="FFFF00"');
   });
 });
 
