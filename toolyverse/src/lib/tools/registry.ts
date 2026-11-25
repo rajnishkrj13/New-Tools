@@ -164,9 +164,9 @@ export const CATEGORIES: Category[] = [
     slug: 'gst-tools',
     name: 'GST tools',
     mark: 'Gs',
-    blurb: 'Calculate GST, make invoices, convert GSTR-1 and 3B to Excel and reconcile them.',
+    blurb: 'Calculate GST, make invoices, convert GSTR-1 and 3B to Excel, reconcile returns and input tax credit.',
     title: 'GST Tools – Calculator, Invoice, GSTR-1/3B Excel, Reconcile',
-    description: 'Free GST tools: calculator, GSTIN checker, invoice maker, GSTR-1 and GSTR-3B PDF to Excel, GSTR-1 vs 3B reconciliation and GSTR-2B merger. Files stay on your device.',
+    description: 'Free GST tools: calculator, GSTIN checker, invoice maker, GSTR-1/3B PDF to Excel, GSTR-1 vs 3B and GSTR-2B vs purchase register reconciliation. Nothing uploaded.',
     intro:
       'Tools for the GST work that comes up every day and at year end: tax on a price, checking a GSTIN, a clean tax invoice, and turning a year of GSTR-1, GSTR-3B and GSTR-2B files into checked, reconciled Excel workbooks. Returns are read in your browser and never uploaded.',
     sections: [
@@ -179,6 +179,7 @@ export const CATEGORIES: Category[] = [
           'A year of returns into Excel: [GSTR-1 to Excel](/gstr1-to-excel) and [GSTR-3B to Excel](/gstr3b-to-excel) read the filed return PDFs from the portal.',
           'Do the returns agree: [GSTR-1 vs GSTR-3B](/gstr1-vs-gstr3b) compares them month by month and table by table.',
           'Input tax credit statements: [GSTR-2B Merger](/gstr2b-merger) joins the monthly GSTR-2B Excel files into one.',
+          'Is the credit in your books really there: [GSTR-2B vs Purchase Register](/gstr2b-vs-purchase-register) matches every bill with what suppliers reported.',
         ],
       },
       {
@@ -1023,7 +1024,7 @@ export const TOOLS: Tool[] = [
     faqs: [
       { q: 'Which figures are compared?', a: '3.1(a) is compared with B2B, B2CL, B2CS and deemed exports including credit/debit notes, amendments and advances; 3.1(b) with exports and SEZ; 3.1(c) and 3.1(e) with Table 8; 3.1.1 with Tables 14 and 15; and the total liability. The full list is shown before you load files.' },
       { q: 'What does a positive difference mean?', a: 'More was reported in GSTR-3B than in GSTR-1 for that head and month. A negative difference means GSTR-1 shows more.' },
-      { q: 'Can I reconcile GSTR-2B with GSTR-3B here?', a: 'Not yet. Use the GSTR-2B Merger to collect your 2B data in one workbook for now.' },
+      { q: 'Can I reconcile GSTR-2B with GSTR-3B here?', a: 'Not yet. To check the input tax credit in your books against GSTR-2B bill by bill, use GSTR-2B vs Purchase Register.' },
     ],
     limits: { publicMb: 10, memberMb: 25 },
     related: ['gstr1-to-excel', 'gstr3b-to-excel', 'gstr2b-merger'],
@@ -1052,8 +1053,70 @@ export const TOOLS: Tool[] = [
     ],
     features: [{ key: 'saveStateNames', label: 'Remember state names', hint: 'Remember the state name typed for each GSTIN', default: true }],
     limits: { publicMb: 15, memberMb: 50 },
-    related: ['gstr1-vs-gstr3b', 'gstr3b-to-excel', 'gstin-validator'],
+    related: ['gstr2b-vs-purchase-register', 'gstr1-vs-gstr3b', 'gstin-validator'],
     keywords: ['gstr2b merger', 'merge gstr 2b excel', 'gstr2b combine', 'gstr 2b consolidated'],
+  },
+
+  {
+    slug: 'gstr2b-vs-purchase-register',
+    category: 'gst',
+    no: 78,
+    updated: '2026-11-25',
+    name: 'GSTR-2B vs Purchase Register',
+    short: 'Reconcile input tax credit: GSTR-2B against your books',
+    title: 'GSTR-2B vs Purchase Register – ITC Reconciliation in Excel',
+    description: 'Reconcile GSTR-2B with your purchase register: matched, differing and missing invoices, supplier-wise ITC difference and an Excel report. Free, nothing uploaded.',
+    h1: 'GSTR-2B vs purchase register reconciliation',
+    intro:
+      'Check your input tax credit before you claim it. Add the GSTR-2B Excel files from the GST portal (any months, any of your GSTINs) and your purchase register from Tally, Busy, SAP or Excel. Every bill is matched with what your suppliers reported, even when the invoice number is written differently, and you see what matches, what differs, and what is missing on either side, with the tax involved. Both files are read in your browser and never uploaded.',
+    steps: [
+      'Add the GSTR-2B Excel downloads from the portal, or the workbook made with the GSTR-2B Merger.',
+      'Add your purchase register and check the columns found for supplier GSTIN, invoice number, date, taxable value and tax.',
+      'Read the result by outcome and supplier, then download the Excel report with every bill and what to do about it.',
+    ],
+    sections: [
+      {
+        h2: 'How bills are matched',
+        list: [
+          'Same supplier GSTIN and invoice number: letters and digits compared, so "INV/045" and "INV-045" match.',
+          'Invoice numbers written differently: the year part, punctuation and leading zeros are set aside, so "INV/2026-27/0045" matches "inv-45".',
+          'Probable matches, for you to confirm: the same number part with the same tax; the same supplier, taxable value and tax within a month; or the same invoice under another GSTIN of the same PAN (a branch in another state).',
+          'Each pair is then compared head by head: taxable value, IGST, CGST, SGST and cess, within the tolerance you set. IGST booked as CGST + SGST (or the other way round) is pointed out.',
+          'Credit notes are matched with credit notes and purchase returns, never with invoices.',
+        ],
+      },
+      {
+        h2: 'What the result tells you',
+        table: {
+          head: ['Result', 'What to do'],
+          rows: [
+            ['Matched', 'Nothing: the supplier reported the bill as you booked it.'],
+            ['Amounts differ', 'Check the bill: a typing error in the books, a rate difference, or the supplier reported it wrongly.'],
+            ['Probable match', 'Confirm the pair: the invoice number does not match exactly.'],
+            ['In 2B, not in books', 'Book the bill if it is yours; it may also be booked without the GSTIN or under another number.'],
+            ['In books, not in 2B', 'Follow up with the supplier: credit is available only once they report the bill in their GSTR-1.'],
+            ['In books, outside the 2B months', 'Dated outside the GSTR-2B months loaded: add those months to check them.'],
+          ],
+        },
+      },
+      {
+        h2: 'Purchase registers it reads',
+        body: [
+          'Any Excel or CSV with one row per bill. The heading row is found even under report titles, and the columns are recognised by their headings: supplier GSTIN, supplier invoice number (preferred over your own voucher number), invoice date, taxable value, IGST, CGST, SGST or UTGST, cess, invoice value and voucher type. Tax split over several columns, such as Tally’s "IGST @5%" and "IGST @18%", is added together. Rows without a supplier GSTIN (unregistered purchases, totals) are left out and counted. Debit notes and purchase returns lower the credit, as the supplier’s credit notes do in GSTR-2B.',
+        ],
+      },
+    ],
+    faqs: [
+      { q: 'Which GSTR-2B files can I use?', a: 'The Excel file downloaded from the GST portal for each month, as it comes, or the merged workbook made with the GSTR-2B Merger. B2B invoices, amendments (B2BA) and credit and debit notes (B2B-CDNR) are all read.' },
+      { q: 'My purchase register has several GSTINs of ours. Does that matter?', a: 'No. Bills are matched by the supplier GSTIN and the invoice number, which identify a bill on their own. Load the GSTR-2B files of all your GSTINs together.' },
+      { q: 'Why are some bills "outside the 2B months"?', a: 'They are dated before the first or after the last GSTR-2B month you loaded, so their supplier returns were not part of the comparison. They are kept apart so they do not inflate the missing list.' },
+      { q: 'Can a small rounding difference be ignored?', a: 'Yes. Set the amount that still counts as equal (₹1 by default) for each tax head and the taxable value.' },
+      { q: 'Is my data uploaded anywhere?', a: 'No. Both files are read and compared in your browser, and the report is made on your device.' },
+    ],
+    featureList: ['Reads GSTR-2B Excel downloads and merged workbooks', 'Reads purchase registers from Tally, Busy, SAP and Excel', 'Matches invoice numbers written differently', 'Probable matches across GSTINs of the same PAN', 'Head-wise differences with tolerance', 'Supplier-wise ITC difference', 'Excel report'],
+    limits: { publicMb: 15, memberMb: 50 },
+    related: ['gstr2b-merger', 'gstr1-vs-gstr3b', 'gstin-validator'],
+    keywords: ['gstr 2b vs purchase register', 'gstr2b reconciliation', 'itc reconciliation excel', 'gstr 2b reconciliation with books', 'purchase register reconciliation', '2b vs books'],
   },
 
   // ---- Converters --------------------------------------------------------------------------------

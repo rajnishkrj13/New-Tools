@@ -37,6 +37,7 @@ const TOOLS: Record<string, ComponentType<ToolProps>> = {
   'gstr3b-to-excel': dynamic(() => import('./gstr3b-to-excel'), { loading }),
   'gstr1-vs-gstr3b': dynamic(() => import('./gstr1-vs-gstr3b'), { loading }),
   'gstr2b-merger': dynamic(() => import('./gstr2b-merger'), { loading }),
+  'gstr2b-vs-purchase-register': dynamic(() => import('./gstr2b-vs-purchase-register'), { loading }),
   'tally-journal-entry-excel': dynamic(() => import('./tally-journal-entry-excel'), { loading }),
   'excel-to-tally-xml-converter': dynamic(() => import('./excel-to-tally-xml-converter'), { loading }),
   'tally-xml-to-excel-converter': dynamic(() => import('./tally-xml-to-excel-converter'), { loading }),

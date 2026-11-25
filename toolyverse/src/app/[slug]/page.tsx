@@ -149,7 +149,7 @@ async function ToolPage({ tool }: { tool: Tool }) {
   const url = `${SITE.url}${toolPath(tool)}`;
   // Big working screens get the full width; the help text stays at reading width.
   const runs = tool.opens ?? tool.slug;
-  const wide = ['pdf-editor', 'gstr1-to-excel', 'gstr3b-to-excel', 'gstr1-vs-gstr3b', 'gstr2b-merger', 'tally-journal-entry-excel', 'excel-to-tally-xml-converter', 'tally-xml-import', 'tally-xml-export', 'tally-xml-converter', 'pdf-to-excel', 'pdf-to-word', 'word-to-excel'].includes(runs);
+  const wide = ['pdf-editor', 'gstr1-to-excel', 'gstr3b-to-excel', 'gstr1-vs-gstr3b', 'gstr2b-merger', 'gstr2b-vs-purchase-register', 'tally-journal-entry-excel', 'excel-to-tally-xml-converter', 'tally-xml-import', 'tally-xml-export', 'tally-xml-converter', 'pdf-to-excel', 'pdf-to-word', 'word-to-excel'].includes(runs);
 
   return (
     <article lang={tool.lang}>
