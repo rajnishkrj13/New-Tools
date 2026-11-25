@@ -63,14 +63,19 @@ export function valueOf(raw: string, idColumn = false): Value {
   const neg = sign1 === '-' || sign2 === '-' || !!trail || bracketed;
   let value = Number(digits + frac) * (neg ? -1 : 1);
   const dec = Math.max(0, frac.length - 1);
-  const num = `#,##0${dec ? `.${'0'.repeat(dec)}` : ''}`;
-  let format = num;
+  const places = dec ? `.${'0'.repeat(dec)}` : '';
+  const prefix = cur ? `"${cur.startsWith('₹') ? '₹' : cur}"` : '';
+  const after = suffix && /cr/i.test(suffix) ? ' "Cr"' : suffix && /dr/i.test(suffix) ? ' "Dr"' : '';
+  let format = `${prefix}#,##0${places}${after}`;
   if (suffix === '%') {
     value /= 100;
-    format = `0${dec ? `.${'0'.repeat(dec)}` : ''}%`;
-  } else if (suffix && /cr/i.test(suffix)) format = `${num} "Cr"`;
-  else if (suffix && /dr/i.test(suffix)) format = `${num} "Dr"`;
-  if (cur) format = `"${cur.startsWith('₹') ? '₹' : cur}"${format}`;
+    format = `0${places}%`;
+  } else if (/^\d{1,2}(,\d{2})+,\d{3}$/.test(int) && value >= 0) {
+    // Written the Indian way (1,25,000.50): shown the same way, lakhs and crores, still a number.
+    // Excel has no such grouping of its own, so the format picks it by size.
+    const g = (pattern: string) => `${prefix}${pattern}${places}${after}`;
+    format = `[>=10000000]${g('##\\,##\\,##\\,##0')};[>=100000]${g('##\\,##\\,##0')};${g('##,##0')}`;
+  }
   // Negative amounts written in brackets keep their brackets.
   if (bracketed) format = `${format};(${format})`;
   return { kind: 'number', value, format };

@@ -26,8 +26,12 @@ export interface JoinResult {
   joined: string[];
 }
 
-/** Joins continuation tables. `pageWidth` is used to compare column positions. */
-export function joinAcrossPages(tables: Table[], pageWidth: (page: number) => number): JoinResult {
+/**
+ * Joins continuation tables. `pageWidth` is used to compare column positions; with `pageHeight`,
+ * a table only continues one that runs down to the lower part of its page (a table that ends
+ * half-way down a page, followed by one with the same heading on the next, is a second table).
+ */
+export function joinAcrossPages(tables: Table[], pageWidth: (page: number) => number, pageHeight?: (page: number) => number): JoinResult {
   const out: Table[] = [];
   const joined: string[] = [];
   // Tables arrive in reading order: by page, then from the top.
@@ -36,7 +40,8 @@ export function joinAcrossPages(tables: Table[], pageWidth: (page: number) => nu
     const prevPage = prev?.pages[prev.pages.length - 1];
     const before = tables[k - 1];
     // The continuation is the first table on its page, and the table before it was the last on the page before.
-    const fits = prev && before && t.pages[0] === prevPage! + 1 && before.pages[0] === prevPage && colCount(prev) === colCount(t) && (sameHeader(prev, t) || sameColumns(prev, t, pageWidth(t.pages[0])));
+    const runsOn = !pageHeight || !before || (before.box.y1 >= pageHeight(before.pages[0]) * 0.6 && t.box.y0 <= pageHeight(t.pages[0]) * 0.5);
+    const fits = prev && before && runsOn && t.pages[0] === prevPage! + 1 && before.pages[0] === prevPage && colCount(prev) === colCount(t) && (sameHeader(prev, t) || sameColumns(prev, t, pageWidth(t.pages[0])));
     if (!fits) {
       out.push(t);
       return;

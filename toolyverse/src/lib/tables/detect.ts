@@ -619,6 +619,40 @@ function joinContinuations(rows: Cell[][], lines?: Line[]): Cell[][] {
 // ---- Page ------------------------------------------------------------------------------------
 
 /**
+ * The colour painted under a box (a cell): the colour whose areas together cover most of it,
+ * at least 60% (shading is often painted in several pieces: per cell, per line of text). Very
+ * dark colours are left out: those are lines or black bars, not shading.
+ */
+export function fillUnder(b: Box, fills: { box: Box; color: string }[]): string | null {
+  const area = Math.max(1, (b.x1 - b.x0) * (b.y1 - b.y0));
+  const cover = new Map<string, number>();
+  for (const f of fills) {
+    const w = Math.min(f.box.x1, b.x1) - Math.max(f.box.x0, b.x0);
+    const h = Math.min(f.box.y1, b.y1) - Math.max(f.box.y0, b.y0);
+    if (w <= 0 || h <= 0) continue;
+    const [r, g, bl] = [0, 2, 4].map((i) => parseInt(f.color.slice(i, i + 2), 16));
+    if (0.299 * r + 0.587 * g + 0.114 * bl <= 90) continue;
+    // A later colour painted over the same area replaces the one under it.
+    for (const k of cover.keys()) if (k !== f.color) cover.set(k, Math.max(0, cover.get(k)! - w * h));
+    cover.set(f.color, Math.min(area, (cover.get(f.color) ?? 0) + w * h));
+  }
+  const best = [...cover].sort((x, y) => y[1] - x[1])[0];
+  return best && best[1] / area >= 0.6 ? best[0] : null;
+}
+
+/** Cell shading from the colours painted on the page. */
+export function shadeCells(tables: Table[], fills: { box: Box; color: string }[]): void {
+  if (!fills.length) return;
+  for (const t of tables)
+    for (const row of t.rows)
+      for (const c of row) {
+        if (c.hidden || !c.box) continue;
+        const color = fillUnder(c.box, fills);
+        if (color) c.fill = color;
+      }
+}
+
+/**
  * Boxes drawn round text (a letterhead, a note): closed rectangles of drawn lines with text
  * inside, that are neither a table (`skip`) nor the frame round the page.
  */

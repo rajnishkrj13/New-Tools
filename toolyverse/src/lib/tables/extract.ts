@@ -5,7 +5,7 @@
  */
 import type { PdfDoc } from '../pdf/render';
 import { languageByCode, type Script } from '../lang';
-import { detectTables } from './detect';
+import { detectTables, shadeCells } from './detect';
 import { joinAcrossPages } from './join';
 import { readDigitalPage, readScannedPage, readTextPage, type IndicCheck, type PageRead } from './pdf';
 import type { Table } from './types';
@@ -92,6 +92,7 @@ export async function extractTables(doc: PdfDoc, opts: ExtractOptions, onStage: 
     if (signal?.aborted) throw new Cancelled();
     onStage(`Finding tables on page ${i + 1}`, (i + 1) / doc.numPages);
     const found = detectTables(read, { mode: opts.mode }).tables;
+    if (read.fills?.length) shadeCells(found, read.fills);
     tables.push(...found);
     pages.push({ index: i, width: read.width, height: read.height, scanned: !!read.scanned, scripts: read.scripts, ocr: read.ocr, tables: found.length });
   }
@@ -100,7 +101,7 @@ export async function extractTables(doc: PdfDoc, opts: ExtractOptions, onStage: 
   let out = tables;
   if (opts.join) {
     onStage('Joining tables that continue across pages');
-    const r = joinAcrossPages(tables, (p) => pages[p]?.width ?? 595);
+    const r = joinAcrossPages(tables, (p) => pages[p]?.width ?? 595, (p) => pages[p]?.height ?? 842);
     out = r.tables;
     joined = r.joined;
   }

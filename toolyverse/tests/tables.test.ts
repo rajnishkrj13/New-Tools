@@ -91,7 +91,9 @@ describe('unruled tables', () => {
 
 describe('values', () => {
   it('types numbers, dates and identifiers without changing them', () => {
-    expect(valueOf('1,25,000.50')).toEqual({ kind: 'number', value: 125000.5, format: '#,##0.00' });
+    // Indian grouping is kept: lakhs and crores by size.
+    expect(valueOf('1,25,000.50')).toEqual({ kind: 'number', value: 125000.5, format: '[>=10000000]##\\,##\\,##\\,##0.00;[>=100000]##\\,##\\,##0.00;##,##0.00' });
+    expect(valueOf('125,000.50')).toEqual({ kind: 'number', value: 125000.5, format: '#,##0.00' });
     expect(valueOf('-250')).toMatchObject({ kind: 'number', value: -250 });
     expect(valueOf('(250.00)')).toEqual({ kind: 'number', value: -250, format: '#,##0.00;(#,##0.00)' });
     expect(valueOf('1,000.00 Cr')).toEqual({ kind: 'number', value: 1000, format: '#,##0.00 "Cr"' });

@@ -9,6 +9,7 @@
  */
 import { isRtl } from '../../lang';
 import type { Box, Segment, Table } from '../../tables/types';
+import { fillUnder } from '../../tables/detect';
 
 /**
  * Lines drawn on the page that belong to the text. A thin line just under a piece of text is its
@@ -689,20 +690,8 @@ function tableItem(t: Table, colL: number, page: PageIn): TableItem {
   );
   // Cell padding as the PDF has it (Word's own is wider and makes text wrap sooner).
   const pad = ruled && gaps.length ? Math.max(0.5, Math.min(5, median(gaps))) : 2.85;
-  // Cell shading: the colour painted over most of the cell (the last one painted wins).
-  const shades = t.rows.map((row) =>
-    row.map((c) => {
-      if (c.hidden || !c.box) return null;
-      const b = c.box;
-      const cellArea = Math.max(1, (b.x1 - b.x0) * (b.y1 - b.y0));
-      const over = (page.fills ?? []).filter((fl) => {
-        const w = Math.min(fl.box.x1, b.x1) - Math.max(fl.box.x0, b.x0);
-        const h = Math.min(fl.box.y1, b.y1) - Math.max(fl.box.y0, b.y0);
-        return w > 0 && h > 0 && (w * h) / cellArea >= 0.6;
-      });
-      return over.length ? over[over.length - 1].color : null;
-    }),
-  );
+  // Cell shading: as found when the table was read, or the colour painted under the cell.
+  const shades = t.rows.map((row) => row.map((c) => (c.hidden || !c.box ? null : (c.fill ?? fillUnder(c.box, page.fills ?? [])))));
   return { table: t, widths, heights, ruled, size, font, left: Math.max(0, t.box.x0 - colL), cells, pad, shades: shades.some((r) => r.some(Boolean)) ? shades : undefined };
 }
 

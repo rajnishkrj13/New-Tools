@@ -188,7 +188,7 @@ export function TableEditor({ items, onChange, onFocus, nextId }: { items: Table
                       }}
                       onDoubleClick={() => setEditing({ r, c: k, text: c.text })}
                       className={`min-w-[4rem] max-w-[22rem] whitespace-pre-wrap border px-1.5 py-1 align-top ${r < t.headerRows ? 'font-semibold' : ''} ${inRange(r, k) ? 'outline outline-2 -outline-offset-2 outline-signal' : ''}`}
-                      style={{ borderColor: flag && flag.level === 'error' ? 'var(--bad)' : 'var(--rule)', boxShadow: flag ? 'inset 0 0 0 1px var(--bad)' : undefined, background: low ? '#fff2b3' : r < t.headerRows ? 'var(--paper-2)' : undefined, color: low ? '#1a1a1a' : undefined }}
+                      style={{ borderColor: flag && flag.level === 'error' ? 'var(--bad)' : 'var(--rule)', boxShadow: flag ? 'inset 0 0 0 1px var(--bad)' : undefined, background: low ? '#fff2b3' : c.fill ? `#${c.fill}` : r < t.headerRows ? 'var(--paper-2)' : undefined, color: low || c.fill ? '#1a1a1a' : undefined }}
                     >
                       {isEdit ? (
                         <textarea

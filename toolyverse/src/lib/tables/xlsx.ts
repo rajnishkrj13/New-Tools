@@ -72,7 +72,9 @@ export async function tablesWorkbook(plans: SheetPlan[], o: WorkbookOptions): Pr
           x.alignment = { vertical: 'top', wrapText: c.text.includes('\n'), ...(cellRtl ? { horizontal: 'right' as const, readingOrder: 'rtl' as const } : {}) };
           x.border = BORDER;
           if (head || c.bold) x.font = { bold: true };
-          if (head) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF5' } };
+          // The PDF's own shading; headings without any get a light blue.
+          if (c.fill) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${c.fill}` } };
+          else if (head) x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF5' } };
           if (o.mark && c.text && (c.conf ?? 100) < 80) {
             x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2B3' } };
             x.note = `Read with low certainty (${c.conf}%). Check against the document.`;

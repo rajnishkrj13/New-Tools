@@ -42,6 +42,8 @@ export interface Cell {
   /** How sure the extraction is about this cell, 0–100, from OCR scores and layout signals. */
   conf?: number;
   bold?: boolean;
+  /** Background colour (RRGGBB) the PDF paints under the cell. */
+  fill?: string;
   /** Link target (Word files). */
   link?: string;
 }

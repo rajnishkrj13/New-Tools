@@ -207,7 +207,7 @@ export async function readPage(doc: PdfDoc, index: number, opts: ReadOptions = {
       pending.push({ raw, box });
     }
   }
-  for (const p of pending.slice(0, 200)) {
+  for (const p of opts.pictures === false ? [] : pending.slice(0, 200)) {
     const raw = await p.raw;
     if (!raw) continue;
     try {
