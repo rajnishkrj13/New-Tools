@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coreNo, dayOf, readRegister, reconcile, registerDocs, suppliers, totals, twoBDocs, type Doc } from '../src/lib/gst/recon2b';
+import { coreNo, dayOf, readRegister, reconcile, registerDocs, suppliers, totals, twoBDocs, twoBJson, type Doc } from '../src/lib/gst/recon2b';
 
 const G1 = '27AAACA1234A1Z5';
 const G2 = '29AAACB5678B1Z3';
@@ -83,7 +83,6 @@ describe('matching', () => {
     expect(r.lines[0].status).toBe('differs');
     expect(reconcile([doc('2b', G1, '1', '01-04-2026', 100, 18)], [doc('books', G1, '1', '03-04-2026', 100, 18)], { tol: 1, dates: false }).lines[0].status).toBe('matched');
   });
-  void MAY;
 });
 
 describe('purchase register', () => {
@@ -126,6 +125,61 @@ describe('GSTR-2B rows', () => {
     const docs = twoBDocs({ B2B: [b2b], 'B2B-CDNR': [cdnr] }, { ours: '27AAACZ0000Z1Z1' });
     expect(docs[0]).toMatchObject({ section: 'B2B', no: 'INV-1', taxable: 10000, igst: 1800, itc: 'Yes', month: APR });
     expect(docs[1]).toMatchObject({ section: 'CDNR', kind: 'Credit note', taxable: -1000, igst: -180 });
+  });
+});
+
+describe('GSTR-2B JSON', () => {
+  // Everything but where the row came from, in one order.
+  const same = (docs: Doc[]) => docs.map((d) => ({ ...d, row: 0, file: undefined, alt: d.alt || undefined })).sort((a, b) => `${a.section}${a.gstin}${a.no}`.localeCompare(`${b.section}${b.gstin}${b.no}`));
+
+  it('gives the same documents as the Excel file of the same month', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const XLSX = await import('xlsx');
+    const ExcelJS = (await import('exceljs')).default;
+    const { makeGstr2b } = await import('../src/lib/gst/gstr2b');
+    const dir = path.join(__dirname, 'fixtures');
+    const p = makeGstr2b(XLSX, ExcelJS).parsePortal(XLSX.read(fs.readFileSync(path.join(dir, 'gstr2b-apr-2026.xlsx'))), 'x');
+    const excel = twoBDocs(p.sheets, { ours: p.gstin });
+    const j = twoBJson(JSON.parse(fs.readFileSync(path.join(dir, 'gstr2b-apr-2026.json'), 'utf8')), 'gstr2b-apr-2026.json');
+    expect(j).toMatchObject({ kind: 'GSTR-2B', gstin: p.gstin, month: APR, errors: [] });
+    expect(j.warnings.join(' ')).toContain('1 ISD and import entries');
+    expect(excel).toHaveLength(8);
+    expect(same(j.docs)).toEqual(same(excel));
+    expect(j.docs.find((d) => d.kind === 'Credit note')).toMatchObject({ no: 'CN-3', taxable: -1000, igst: -180 });
+  });
+
+  it('reads amendments, debit notes and the older GSTR-2A layout', () => {
+    const r = twoBJson({
+      data: {
+        rtnprd: '052026', gstin: '27AAACZ0000Z1Z1',
+        docdata: {
+          b2ba: [{ ctin: G1, trdnm: 'Alpha', inv: [{ oinum: 'A-1', inum: 'A-1R', dt: '02-05-2026', val: 118, txval: 100, igst: 18, cgst: 0, sgst: 0, cess: 0, itcavl: 'N', rev: 'N' }] }],
+          cdnr: [{ ctin: G2, trdnm: 'Beta', nt: [{ ntnum: 'DN-1', typ: 'D', dt: '03-05-2026', val: 59, txval: 50, igst: 9, cgst: 0, sgst: 0, cess: 0, itcavl: 'Y' }] }],
+        },
+      },
+    });
+    expect(r.month).toBe(MAY);
+    expect(r.docs[0]).toMatchObject({ section: 'B2BA', alt: 'A-1', no: 'A-1R', itc: 'No', taxable: 100, month: MAY });
+    expect(r.docs[1]).toMatchObject({ kind: 'Debit note', taxable: 50, igst: 9 });
+
+    const twoA = twoBJson({
+      gstin: '27AAACZ0000Z1Z1', fp: '042026',
+      b2b: [{ ctin: G1, cfs: 'Y', inv: [{ inum: '77', idt: '09-04-2026', val: 1180, rchrg: 'N', itms: [{ num: 1, itm_det: { rt: 18, txval: 600, iamt: 108 } }, { num: 2, itm_det: { rt: 18, txval: 400, iamt: 72 } }] }] }],
+      cdn: [{ ctin: G1, nt: [{ ntty: 'C', nt_num: 'C9', nt_dt: '10-04-2026', val: 118, itms: [{ num: 1, itm_det: { rt: 18, txval: 100, iamt: 18 } }] }] }],
+    });
+    expect(twoA.kind).toBe('GSTR-2A');
+    expect(twoA.docs[0]).toMatchObject({ no: '77', date: dayOf('09-04-2026'), taxable: 1000, igst: 180, month: APR });
+    expect(twoA.docs[1]).toMatchObject({ no: 'C9', kind: 'Credit note', taxable: -100, igst: -18 });
+  });
+
+  it('says so when the file is not a GSTR-2B', () => {
+    expect(twoBJson({ data: { gstin: '27AAACZ0000Z1Z1', ret_period: '042026' } }).errors).toHaveLength(1);
+    expect(twoBJson({ gstin: '27AAACZ0000Z1Z1', ret_period: '042026', sup_details: {}, itc_elg: {} }).errors.join()).toContain('GSTR-3B');
+    // A GSTR-1 has b2b too, but its GSTINs are your customers'.
+    const gstr1 = twoBJson({ gstin: '27AAACZ0000Z1Z1', fp: '042026', b2b: [{ ctin: G1, inv: [{ inum: 'S-1', idt: '01-04-2026', val: 118, itms: [{ num: 1, itm_det: { txval: 100, iamt: 18 } }] }] }], hsn: {} });
+    expect(gstr1.docs).toEqual([]);
+    expect(gstr1.errors.join()).toContain('GSTR-1');
   });
 });
 

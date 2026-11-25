@@ -1068,9 +1068,9 @@ export const TOOLS: Tool[] = [
     description: 'Reconcile GSTR-2B with your purchase register: matched, differing and missing invoices, supplier-wise ITC difference and an Excel report. Free, nothing uploaded.',
     h1: 'GSTR-2B vs purchase register reconciliation',
     intro:
-      'Check your input tax credit before you claim it. Add the GSTR-2B Excel files from the GST portal (any months, any of your GSTINs) and your purchase register from Tally, Busy, SAP or Excel. Every bill is matched with what your suppliers reported, even when the invoice number is written differently, and you see what matches, what differs, and what is missing on either side, with the tax involved. Both files are read in your browser and never uploaded.',
+      'Check your input tax credit before you claim it. Add the GSTR-2B Excel or JSON files from the GST portal (any months, any of your GSTINs) and your purchase register from Tally, Busy, SAP or Excel. Every bill is matched with what your suppliers reported, even when the invoice number is written differently, and you see what matches, what differs, and what is missing on either side, with the tax involved. Both files are read in your browser and never uploaded.',
     steps: [
-      'Add the GSTR-2B Excel downloads from the portal, or the workbook made with the GSTR-2B Merger.',
+      'Add the GSTR-2B downloads from the portal, Excel or JSON, or the workbook made with the GSTR-2B Merger.',
       'Add your purchase register and check the columns found for supplier GSTIN, invoice number, date, taxable value and tax.',
       'Read the result by outcome and supplier, then download the Excel report with every bill and what to do about it.',
     ],
@@ -1107,16 +1107,16 @@ export const TOOLS: Tool[] = [
       },
     ],
     faqs: [
-      { q: 'Which GSTR-2B files can I use?', a: 'The Excel file downloaded from the GST portal for each month, as it comes, or the merged workbook made with the GSTR-2B Merger. B2B invoices, amendments (B2BA) and credit and debit notes (B2B-CDNR) are all read.' },
+      { q: 'Which GSTR-2B files can I use?', a: 'The Excel or JSON file downloaded from the GST portal for each month, as it comes (a zipped JSON too), or the merged workbook made with the GSTR-2B Merger. B2B invoices, amendments (B2BA) and credit and debit notes (B2B-CDNR) are all read. A GSTR-2A JSON works the same way. ISD and import entries are counted but not compared, as they have no supplier invoice in the books.' },
       { q: 'My purchase register has several GSTINs of ours. Does that matter?', a: 'No. Bills are matched by the supplier GSTIN and the invoice number, which identify a bill on their own. Load the GSTR-2B files of all your GSTINs together.' },
       { q: 'Why are some bills "outside the 2B months"?', a: 'They are dated before the first or after the last GSTR-2B month you loaded, so their supplier returns were not part of the comparison. They are kept apart so they do not inflate the missing list.' },
       { q: 'Can a small rounding difference be ignored?', a: 'Yes. Set the amount that still counts as equal (₹1 by default) for each tax head and the taxable value.' },
       { q: 'Is my data uploaded anywhere?', a: 'No. Both files are read and compared in your browser, and the report is made on your device.' },
     ],
-    featureList: ['Reads GSTR-2B Excel downloads and merged workbooks', 'Reads purchase registers from Tally, Busy, SAP and Excel', 'Matches invoice numbers written differently', 'Probable matches across GSTINs of the same PAN', 'Head-wise differences with tolerance', 'Supplier-wise ITC difference', 'Excel report'],
+    featureList: ['Reads GSTR-2B Excel and JSON downloads and merged workbooks', 'Reads purchase registers from Tally, Busy, SAP and Excel', 'Matches invoice numbers written differently', 'Probable matches across GSTINs of the same PAN', 'Head-wise differences with tolerance', 'Supplier-wise ITC difference', 'Excel report'],
     limits: { publicMb: 15, memberMb: 50 },
     related: ['gstr2b-merger', 'gstr1-vs-gstr3b', 'gstin-validator'],
-    keywords: ['gstr 2b vs purchase register', 'gstr2b reconciliation', 'itc reconciliation excel', 'gstr 2b reconciliation with books', 'purchase register reconciliation', '2b vs books'],
+    keywords: ['gstr 2b vs purchase register', 'gstr2b reconciliation', 'itc reconciliation excel', 'gstr 2b reconciliation with books', 'purchase register reconciliation', '2b vs books', 'gstr 2b json to excel reconciliation'],
   },
 
   // ---- Converters --------------------------------------------------------------------------------

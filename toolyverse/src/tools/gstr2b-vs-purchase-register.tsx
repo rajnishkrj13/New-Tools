@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { XLSX_TYPE } from '@/lib/gst/excel';
-import { FIELDS, STATUS_LABEL, dayText, readRegister, reconcile, registerDocs, taxOf, totals, twoBDocs, type Doc, type Field, type Line, type Register, type Status } from '@/lib/gst/recon2b';
+import { FIELDS, STATUS_LABEL, dayText, readRegister, reconcile, registerDocs, taxOf, totals, twoBDocs, twoBJson, type Doc, type Field, type Line, type Register, type Status } from '@/lib/gst/recon2b';
 import { Notice, Spinner, download, sizeProblem, type ToolProps } from './kit';
 import { Chip, Drop, Section } from './gst/ReturnUI';
 
@@ -64,11 +64,11 @@ export default function Gstr2bVsPurchaseRegister(props: ToolProps) {
   const readBook = async (f: File) => lib!.XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: 'array', cellDates: false });
 
   /** GSTR-2B: portal downloads (any months, any of your GSTINs) or a merged workbook. */
-  const addTwoB = async (list: File[]) => {
+  const addTwoB = async (list: File[], note?: string) => {
     if (!lib) return;
     setNotice(null);
     const added: TwoBFile[] = [];
-    const problems: string[] = [];
+    const problems: string[] = note ? [note] : [];
     for (const f of list) {
       const p = sizeProblem(f, props);
       if (p) {
@@ -76,6 +76,28 @@ export default function Gstr2bVsPurchaseRegister(props: ToolProps) {
         continue;
       }
       setBusy(`Reading ${f.name}…`);
+      // JSON from the portal, as it comes or zipped.
+      if (/\.(json|zip)$/i.test(f.name)) {
+        try {
+          const jsons: { name: string; text: string }[] = [];
+          if (/\.zip$/i.test(f.name)) {
+            const zip = await (await import('jszip')).default.loadAsync(await f.arrayBuffer());
+            for (const e of Object.values(zip.files)) if (!e.dir && /\.json$/i.test(e.name)) jsons.push({ name: e.name.split('/').pop()!, text: await e.async('string') });
+            if (!jsons.length) problems.push(`${f.name} has no JSON file inside.`);
+          } else jsons.push({ name: f.name, text: await f.text() });
+          for (const j of jsons) {
+            const r = twoBJson(JSON.parse(j.text), j.name);
+            if (!r.docs.length && r.errors.length) {
+              problems.push(`${j.name}: ${r.errors.join(' ')}`);
+              continue;
+            }
+            added.push({ id: ++seq.current, name: j.name, docs: r.docs, what: `${r.kind} JSON · ${r.gstin ?? 'GSTIN not given'} · ${monthOf(r.month)}`, errors: r.errors, warnings: r.warnings });
+          }
+        } catch {
+          problems.push(`${f.name} could not be read as a GSTR-2B JSON file.`);
+        }
+        continue;
+      }
       try {
         const wb = await readBook(f);
         const kind = lib.core.sniff(wb);
@@ -107,13 +129,13 @@ export default function Gstr2bVsPurchaseRegister(props: ToolProps) {
     const f = list[0];
     const p = sizeProblem(f, props);
     if (p) return setNotice({ tone: 'bad', text: p });
+    if (/\.(json|zip)$/i.test(f.name)) return addTwoB([f], `${f.name} is a GSTR-2B JSON file, so it was added on the left.`);
     setBusy(`Reading ${f.name}…`);
     try {
       const wb = await readBook(f);
       if (lib.core.sniff(wb) !== 'unknown') {
-        setNotice({ tone: 'warn', text: `${f.name} is a GSTR-2B file, so it was added on the left.` });
         setBusy('');
-        return addTwoB([f]);
+        return addTwoB([f], `${f.name} is a GSTR-2B file, so it was added on the left.`);
       }
       wbRef.current = wb;
       const rows = (s: string) => (lib.XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, blankrows: false }) as unknown[]).length;
@@ -165,7 +187,7 @@ export default function Gstr2bVsPurchaseRegister(props: ToolProps) {
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
           <p className="label mb-2">1 · GSTR-2B</p>
-          <Drop accept=".xlsx,.xls,.xlsm" title="GSTR-2B Excel files" hint="As downloaded from the GST portal, any months and GSTINs; or your merged GSTR-2B workbook." onFiles={addTwoB} />
+          <Drop accept=".xlsx,.xls,.xlsm,.json,.zip" title="GSTR-2B files" hint="Excel or JSON as downloaded from the GST portal (a zipped JSON too), any months and GSTINs; or your merged GSTR-2B workbook." onFiles={addTwoB} />
           {twoB.length > 0 && (
             <ul className="mt-2 space-y-1 text-[0.88rem]">
               {twoB.map((f) => (

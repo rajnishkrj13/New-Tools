@@ -139,6 +139,8 @@ export function numPart(s: string): string {
 // ---- GSTR-2B rows ------------------------------------------------------------------------------
 
 const num = (v: unknown) => amountOf(v) ?? 0;
+/** The amount with the sign of k (a credit note's amounts count as negative), never -0. */
+const signed = (k: number, x: number) => k * Math.abs(x) || 0;
 
 /**
  * Documents from GSTR-2B sheets as the GSTR-2B reader gives them (State and GSTR-2B Month first,
@@ -167,11 +169,99 @@ export function twoBDocs(sheets: Record<string, unknown[][]>, opts: { ours?: str
     const k = credit ? -1 : 1;
     out.push({
       src: '2b', section: 'CDNR', gstin: s(r[2]).toUpperCase(), name: s(r[3]), no: s(r[4]), date: dayOf(r[7]), kind: credit ? 'Credit note' : 'Debit note',
-      value: amountOf(r[8]), rcm: /^y/i.test(s(r[10])), taxable: k * Math.abs(num(r[11])), igst: k * Math.abs(num(r[12])), cgst: k * Math.abs(num(r[13])), sgst: k * Math.abs(num(r[14])), cess: k * Math.abs(num(r[15])),
+      value: amountOf(r[8]), rcm: /^y/i.test(s(r[10])), taxable: signed(k, num(r[11])), igst: signed(k, num(r[12])), cgst: signed(k, num(r[13])), sgst: signed(k, num(r[14])), cess: signed(k, num(r[15])),
       itc: s(r[24]), month: typeof r[1] === 'number' ? r[1] : null, ours: opts.ours, row: i + 2, file: opts.file,
     });
   });
   return out.filter((d) => LOOSE_GSTIN.test(d.gstin));
+}
+
+// ---- GSTR-2B JSON ------------------------------------------------------------------------------
+
+export interface JsonRead {
+  docs: Doc[];
+  /** Recipient GSTIN and return period from the file. */
+  gstin: string | null;
+  month: number | null;
+  /** "GSTR-2B" or "GSTR-2A", from the layout. */
+  kind: string;
+  errors: string[];
+  warnings: string[];
+}
+
+type J = Record<string, unknown>;
+const obj = (v: unknown): J => (v && typeof v === 'object' && !Array.isArray(v) ? (v as J) : {});
+const arr = (v: unknown): J[] => (Array.isArray(v) ? (v as J[]).map(obj) : []);
+const str = (v: unknown) => (v == null ? '' : String(v).trim());
+
+/** "042026" (MMYYYY) → the Excel serial of 1 April 2026. */
+const periodOf = (p: unknown): number | null => {
+  const m = /^(\d{2})(\d{4})$/.exec(str(p));
+  return m && +m[1] >= 1 && +m[1] <= 12 ? serial(+m[2], +m[1] - 1, 1) : null;
+};
+
+/** Taxes of a document: on the document (GSTR-2B), or added up from its items (GSTR-2A). */
+function taxesOf(d: J): Pick<Doc, 'taxable' | 'igst' | 'cgst' | 'sgst' | 'cess'> {
+  const items = arr(d.itms).map((i) => obj(i.itm_det));
+  if (items.length && d.txval == null) {
+    const add = (k: string) => r2(items.reduce((t, i) => t + num(i[k]), 0));
+    return { taxable: add('txval'), igst: add('iamt'), cgst: add('camt'), sgst: add('samt'), cess: add('csamt') };
+  }
+  return { taxable: num(d.txval), igst: num(d.igst ?? d.iamt), cgst: num(d.cgst ?? d.camt), sgst: num(d.sgst ?? d.samt), cess: num(d.cess ?? d.csamt) };
+}
+
+/**
+ * Documents from a GSTR-2B JSON file as the GST portal gives it (also the older GSTR-2A layout):
+ * B2B invoices, their amendments (B2BA) and credit and debit notes (CDNR, CDNRA). ISD and
+ * import entries have no supplier invoice in the books to compare with, so they are counted only.
+ */
+export function twoBJson(json: unknown, file?: string): JsonRead {
+  const root = obj(obj(json).data ?? json);
+  const dd = obj(root.docdata ?? root);
+  const gstin = str(root.gstin).toUpperCase() || null;
+  const month = periodOf(root.rtnprd ?? root.fp ?? root.ret_period);
+  const kind = root.rtnprd != null || root.docdata != null ? 'GSTR-2B' : 'GSTR-2A';
+  const out: JsonRead = { docs: [], gstin, month, kind, errors: [], warnings: [] };
+  // Your own returns share some section names (a GSTR-1's b2b lists your customers), so they are turned away first.
+  if (root.rtnprd == null && root.docdata == null) {
+    const has = (keys: string[]) => keys.some((k) => k in root);
+    if (has(['b2cs', 'b2cl', 'hsn', 'doc_issue', 'exp', 'nil', 'gt', 'cur_gt'])) out.errors.push('This is a GSTR-1 JSON: your sales. Add the GSTR-2B JSON from the portal instead.');
+    else if (has(['sup_details', 'itc_elg', 'inter_sup'])) out.errors.push('This is a GSTR-3B JSON. Add the GSTR-2B JSON from the portal instead.');
+    if (out.errors.length) return { ...out, kind: '' };
+  }
+  const base = (s: J): Pick<Doc, 'src' | 'gstin' | 'name' | 'month' | 'ours' | 'file'> => ({
+    src: '2b', gstin: str(s.ctin).toUpperCase(), name: str(s.trdnm ?? s.cname), month: month ?? periodOf(s.supprd ?? s.fp), ours: gstin ?? undefined, file,
+  });
+  const itc = (d: J) => {
+    const v = str(d.itcavl);
+    return v === 'Y' ? 'Yes' : v === 'N' ? 'No' : v === 'T' ? 'Temporary' : v;
+  };
+  let row = 0;
+  for (const s of arr(dd.b2b))
+    for (const d of arr(s.inv))
+      out.docs.push({ ...base(s), section: 'B2B', no: str(d.inum), date: dayOf(d.dt ?? d.idt), kind: 'Invoice', value: amountOf(d.val), rcm: /^y/i.test(str(d.rev ?? d.rchrg)), itc: itc(d), ...taxesOf(d), row: ++row });
+  for (const s of arr(dd.b2ba))
+    for (const d of arr(s.inv))
+      out.docs.push({ ...base(s), section: 'B2BA', alt: str(d.oinum), no: str(d.inum), date: dayOf(d.dt ?? d.idt), kind: 'Invoice', value: amountOf(d.val), rcm: /^y/i.test(str(d.rev ?? d.rchrg)), itc: itc(d), ...taxesOf(d), row: ++row });
+  for (const key of ['cdnr', 'cdn', 'cdnra', 'cdna'])
+    for (const s of arr(dd[key]))
+      for (const d of arr(s.nt)) {
+        // A credit note lowers the input tax credit: its amounts count as negative.
+        const credit = /^c/i.test(str(d.typ ?? d.ntty));
+        const k = credit ? -1 : 1;
+        const t = taxesOf(d);
+        out.docs.push({
+          ...base(s), section: 'CDNR', no: str(d.ntnum ?? d.nt_num), alt: str(d.ontnum ?? d.ont_num) || undefined, date: dayOf(d.dt ?? d.nt_dt), kind: credit ? 'Credit note' : 'Debit note',
+          value: amountOf(d.val), rcm: /^y/i.test(str(d.rev ?? d.rchrg)), itc: itc(d),
+          taxable: signed(k, t.taxable), igst: signed(k, t.igst), cgst: signed(k, t.cgst), sgst: signed(k, t.sgst), cess: signed(k, t.cess), row: ++row,
+        });
+      }
+  out.docs = out.docs.filter((d) => LOOSE_GSTIN.test(d.gstin));
+  const other = ['isd', 'isda', 'impg', 'impgsez'].reduce((n, k) => n + arr(dd[k]).length, 0);
+  if (other) out.warnings.push(`${other} ISD and import entries are not compared: they have no supplier invoice in the purchase register.`);
+  if (!['b2b', 'b2ba', 'cdnr', 'cdn', 'cdnra', 'cdna'].some((k) => k in dd) && !out.docs.length) out.errors.push('No B2B, B2BA or credit/debit note sections found. Is this a GSTR-2B (or GSTR-2A) JSON from the GST portal?');
+  if (!gstin) out.warnings.push('The file does not say whose GSTR-2B it is (no GSTIN).');
+  return out;
 }
 
 // ---- Purchase register -------------------------------------------------------------------------

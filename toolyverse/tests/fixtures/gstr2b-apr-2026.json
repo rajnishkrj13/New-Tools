@@ -1,0 +1,202 @@
+{
+ "chksum": "sample",
+ "data": {
+  "rtnprd": "042026",
+  "gstin": "27AAACZ0000Z1Z1",
+  "version": "1.0",
+  "gendt": "14-05-2026",
+  "docdata": {
+   "b2b": [
+    {
+     "ctin": "27AAACA1234A1Z5",
+     "trdnm": "Alpha Steel Pvt Ltd",
+     "supfildt": "11-05-2026",
+     "supprd": "042026",
+     "inv": [
+      {
+       "inum": "INV/2026-27/0045",
+       "typ": "R",
+       "dt": "05-04-2026",
+       "val": 11800,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 10000,
+       "igst": 1800,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      },
+      {
+       "inum": "INV/2026-27/0046",
+       "typ": "R",
+       "dt": "06-04-2026",
+       "val": 5900,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 5000,
+       "igst": 900,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      },
+      {
+       "inum": "INV/2026-27/0050",
+       "typ": "R",
+       "dt": "18-04-2026",
+       "val": 4720,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 4000,
+       "igst": 720,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      }
+     ]
+    },
+    {
+     "ctin": "29AAACB5678B1Z3",
+     "trdnm": "Beta Paints LLP",
+     "supfildt": "11-05-2026",
+     "supprd": "042026",
+     "inv": [
+      {
+       "inum": "B-78",
+       "typ": "R",
+       "dt": "10-04-2026",
+       "val": 2360,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 2000,
+       "igst": 360,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      },
+      {
+       "inum": "B-80",
+       "typ": "R",
+       "dt": "20-04-2026",
+       "val": 1770,
+       "pos": "27",
+       "rev": "Y",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 1500,
+       "igst": 270,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      }
+     ]
+    },
+    {
+     "ctin": "07AAACD4321D1Z2",
+     "trdnm": "Delta Logistics",
+     "supfildt": "11-05-2026",
+     "supprd": "042026",
+     "inv": [
+      {
+       "inum": "DL/101",
+       "typ": "R",
+       "dt": "12-04-2026",
+       "val": 9440,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 8000,
+       "igst": 0,
+       "cgst": 720,
+       "sgst": 720,
+       "cess": 0
+      }
+     ]
+    },
+    {
+     "ctin": "33AAACE1111E1Z8",
+     "trdnm": "Epsilon Foods",
+     "supfildt": "11-05-2026",
+     "supprd": "042026",
+     "inv": [
+      {
+       "inum": "EF-2001",
+       "typ": "R",
+       "dt": "15-04-2026",
+       "val": 3150,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "srctyp": "Manual",
+       "txval": 3000,
+       "igst": 150,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      }
+     ]
+    }
+   ],
+   "cdnr": [
+    {
+     "ctin": "27AAACA1234A1Z5",
+     "trdnm": "Alpha Steel Pvt Ltd",
+     "supfildt": "11-05-2026",
+     "supprd": "042026",
+     "nt": [
+      {
+       "ntnum": "CN-3",
+       "typ": "C",
+       "suptyp": "R",
+       "dt": "12-04-2026",
+       "val": 1180,
+       "pos": "27",
+       "rev": "N",
+       "itcavl": "Y",
+       "rsn": "",
+       "diffprcnt": 1,
+       "txval": 1000,
+       "igst": 180,
+       "cgst": 0,
+       "sgst": 0,
+       "cess": 0
+      }
+     ]
+    }
+   ],
+   "impg": [
+    {
+     "refdt": "20-04-2026",
+     "portcode": "INNSA1",
+     "boenum": "1234567",
+     "boedt": "18-04-2026",
+     "txval": 50000,
+     "igst": 9000,
+     "cess": 0
+    }
+   ]
+  }
+ }
+}
