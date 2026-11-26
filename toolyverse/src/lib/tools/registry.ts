@@ -1068,11 +1068,12 @@ export const TOOLS: Tool[] = [
     description: 'Reconcile GSTR-2B with your purchase register: matched, differing and missing invoices, supplier-wise ITC difference and an Excel report. Free, nothing uploaded.',
     h1: 'GSTR-2B vs purchase register reconciliation',
     intro:
-      'Check your input tax credit before you claim it. Add the GSTR-2B Excel or JSON files from the GST portal (any months, any of your GSTINs) and your purchase register from Tally, Busy, SAP or Excel. Every bill is matched with what your suppliers reported, even when the invoice number is written differently, and you see what matches, what differs, and what is missing on either side, with the tax involved. Both files are read in your browser and never uploaded.',
+      'Check your input tax credit before you claim it. Add the GSTR-2B Excel or JSON files from the GST portal (any months, any of your GSTINs) and your purchase register from Tally, Busy, SAP or Excel. Every bill is matched with what your suppliers reported, even when the invoice number is written differently, and imports by their bill of entry. You see what matches, what differs and what is missing on either side, which bills are near the Section 16(4) time limit, and a message for each supplier to follow up. Both files are read in your browser and never uploaded.',
     steps: [
       'Add the GSTR-2B downloads from the portal, Excel or JSON, or the workbook made with the GSTR-2B Merger.',
       'Add your purchase register and check the columns found for supplier GSTIN, invoice number, date, taxable value and tax.',
-      'Read the result by outcome and supplier, then download the Excel report with every bill and what to do about it.',
+      'Read the result by outcome, month or supplier; confirm probable matches and pair bills the tool could not.',
+      'Download the Excel report with every bill, the month-wise totals and a follow-up message per supplier.',
     ],
     sections: [
       {
@@ -1083,6 +1084,8 @@ export const TOOLS: Tool[] = [
           'Probable matches, for you to confirm: the same number part with the same tax; the same supplier, taxable value and tax within a month; or the same invoice under another GSTIN of the same PAN (a branch in another state).',
           'Each pair is then compared head by head: taxable value, IGST, CGST, SGST and cess, within the tolerance you set. IGST booked as CGST + SGST (or the other way round) is pointed out.',
           'Credit notes are matched with credit notes and purchase returns, never with invoices.',
+          'Imports (IMPG and IMPGSEZ) are matched by the bill of entry number, or by the same taxable value and IGST within a month.',
+          'You decide the rest: confirm a probable match or turn it down, and pair a bill missing on one side with one missing on the other. The totals and the report follow your decisions.',
         ],
       },
       {
@@ -1100,23 +1103,33 @@ export const TOOLS: Tool[] = [
         },
       },
       {
+        h2: 'Time limit, months and follow-up',
+        list: [
+          'Section 16(4): ITC on a bill can be taken until 30 November after the end of its financial year (or the annual return, if filed earlier). Bills still open within 60 days of that date, or past it, are counted at the top and marked on each line.',
+          'Month-wise: the ITC in each month’s GSTR-2B against what you booked that month, to hold against GSTR-3B. A bill booked in April that appears in May’s GSTR-2B is noted on the bill.',
+          'Follow-up: for each supplier, the bills in your books but not in GSTR-2B and those reported with less tax, with a message ready to copy into an email.',
+        ],
+      },
+      {
         h2: 'Purchase registers it reads',
         body: [
-          'Any Excel or CSV with one row per bill. The heading row is found even under report titles, and the columns are recognised by their headings: supplier GSTIN, supplier invoice number (preferred over your own voucher number), invoice date, taxable value, IGST, CGST, SGST or UTGST, cess, invoice value and voucher type. Tax split over several columns, such as Tally’s "IGST @5%" and "IGST @18%", is added together. Rows without a supplier GSTIN (unregistered purchases, totals) are left out and counted. Debit notes and purchase returns lower the credit, as the supplier’s credit notes do in GSTR-2B.',
+          'Any Excel or CSV with one row per bill. The heading row is found even under report titles, and the columns are recognised by their headings: supplier GSTIN, supplier invoice number (preferred over your own voucher number), invoice date, taxable value, IGST, CGST, SGST or UTGST, cess, invoice value and voucher type. Tax split over several columns, such as Tally’s "IGST @5%" and "IGST @18%", is added together. Rows without a supplier GSTIN (unregistered purchases, totals) are left out and counted; imports are read by their bill of entry number. A voucher date column tells when a bill was booked. Debit notes and purchase returns lower the credit, as the supplier’s credit notes do in GSTR-2B. If you correct the columns, your choice is remembered in this browser for registers laid out the same way.',
         ],
       },
     ],
     faqs: [
-      { q: 'Which GSTR-2B files can I use?', a: 'The Excel or JSON file downloaded from the GST portal for each month, as it comes (a zipped JSON too), or the merged workbook made with the GSTR-2B Merger. B2B invoices, amendments (B2BA) and credit and debit notes (B2B-CDNR) are all read. A GSTR-2A JSON works the same way. ISD and import entries are counted but not compared, as they have no supplier invoice in the books.' },
+      { q: 'Which GSTR-2B files can I use?', a: 'The Excel or JSON file downloaded from the GST portal for each month, as it comes (a zipped JSON too), or the merged workbook made with the GSTR-2B Merger. B2B invoices, amendments (B2BA), credit and debit notes (B2B-CDNR) and imports (IMPG, IMPGSEZ) are all read. A GSTR-2A JSON works the same way. ISD entries are counted but not compared, as they have no supplier invoice in the books.' },
       { q: 'My purchase register has several GSTINs of ours. Does that matter?', a: 'No. Bills are matched by the supplier GSTIN and the invoice number, which identify a bill on their own. Load the GSTR-2B files of all your GSTINs together.' },
       { q: 'Why are some bills "outside the 2B months"?', a: 'They are dated before the first or after the last GSTR-2B month you loaded, so their supplier returns were not part of the comparison. They are kept apart so they do not inflate the missing list.' },
+      { q: 'How is the ITC time limit worked out?', a: 'From the invoice date: the financial year it falls in ends on 31 March, and the credit can be taken until the following 30 November (Section 16(4)), or the date you file the annual return if that is earlier. Only bills still open are flagged: missing on one side, differing, or a probable match not yet confirmed.' },
+      { q: 'Can I pair two bills myself?', a: 'Yes. On a bill missing from one side, choose Pair and pick the bill from the other side (same supplier PAN). Probable matches can be confirmed or turned down. The amounts are still compared, and the report notes what you decided.' },
       { q: 'Can a small rounding difference be ignored?', a: 'Yes. Set the amount that still counts as equal (₹1 by default) for each tax head and the taxable value.' },
       { q: 'Is my data uploaded anywhere?', a: 'No. Both files are read and compared in your browser, and the report is made on your device.' },
     ],
-    featureList: ['Reads GSTR-2B Excel and JSON downloads and merged workbooks', 'Reads purchase registers from Tally, Busy, SAP and Excel', 'Matches invoice numbers written differently', 'Probable matches across GSTINs of the same PAN', 'Head-wise differences with tolerance', 'Supplier-wise ITC difference', 'Excel report'],
+    featureList: ['Reads GSTR-2B Excel and JSON downloads and merged workbooks', 'Reads purchase registers from Tally, Busy, SAP and Excel', 'Matches invoice numbers written differently', 'Imports matched by bill of entry', 'Probable matches across GSTINs of the same PAN', 'Confirm, turn down or pair bills yourself', 'Section 16(4) time limit flagged', 'Month-wise ITC for GSTR-3B', 'Supplier-wise difference and follow-up messages', 'Excel report'],
     limits: { publicMb: 15, memberMb: 50 },
     related: ['gstr2b-merger', 'gstr1-vs-gstr3b', 'gstin-validator'],
-    keywords: ['gstr 2b vs purchase register', 'gstr2b reconciliation', 'itc reconciliation excel', 'gstr 2b reconciliation with books', 'purchase register reconciliation', '2b vs books', 'gstr 2b json to excel reconciliation'],
+    keywords: ['gstr 2b vs purchase register', 'gstr2b reconciliation', 'itc reconciliation excel', 'gstr 2b reconciliation with books', 'purchase register reconciliation', '2b vs books', 'gstr 2b json to excel reconciliation', 'itc time limit section 16(4)', 'supplier follow-up gstr 2b'],
   },
 
   // ---- Converters --------------------------------------------------------------------------------

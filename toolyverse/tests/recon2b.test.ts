@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coreNo, dayOf, readRegister, reconcile, registerDocs, suppliers, totals, twoBDocs, twoBJson, type Doc } from '../src/lib/gst/recon2b';
+import { coreNo, dayOf, dayText, dues, followUps, itcDeadline, monthly, pairKey, readRegister, reconcile, registerDocs, suppliers, totals, twoBDocs, twoBImports, twoBJson, type Doc } from '../src/lib/gst/recon2b';
 
 const G1 = '27AAACA1234A1Z5';
 const G2 = '29AAACB5678B1Z3';
@@ -115,6 +115,139 @@ describe('purchase register', () => {
     expect(read.docs[1].igst).toBe(100);
     // A debit note in the books (a purchase return) lowers the credit.
     expect(read.docs[2]).toMatchObject({ kind: 'Credit note', taxable: -1000, igst: -180 });
+    // The voucher date tells when it was booked.
+    expect(reg.mapping.booked).toEqual([0]);
+    expect(read.docs[1]).toMatchObject({ date: dayOf('04-04-2026'), booked: dayOf('06-04-2026') });
+  });
+
+  it('reads imports by their bill of entry, without a supplier GSTIN', () => {
+    const rows: unknown[][] = [
+      ['Date', 'Party Name', 'Supplier Invoice No.', 'GSTIN/UIN', 'Bill of Entry No.', 'Bill of Entry Date', 'Taxable Value', 'IGST'],
+      ['18-Apr-2026', 'Acme GmbH', 'EXP-77', '', '1234567', '18-Apr-2026', 50000, 9000],
+      ['19-Apr-2026', 'Cash', '12', '', '', '', 100, 18],
+    ];
+    const reg = readRegister(rows);
+    expect(reg.mapping.boe).toEqual([4]);
+    expect(reg.mapping.no).toEqual([2]);
+    const read = registerDocs(rows, reg);
+    expect(read.noGstin).toBe(1);
+    expect(read.docs).toEqual([expect.objectContaining({ gstin: '', boe: '1234567', no: 'EXP-77', kind: 'Bill of entry', igst: 9000 })]);
+  });
+});
+
+describe('imports', () => {
+  // The IMPG sheet of a GSTR-2B Excel download: a merged heading over two rows.
+  const impg: unknown[][] = [
+    ['Goods and Services Tax - GSTR-2B'],
+    ['Import of goods from overseas on bill of entry'],
+    ['Icegate Reference Date', 'Bill of Entry Details', null, null, 'Taxable Value (₹)', 'Amount of tax (₹)', null, 'Amended (Yes)'],
+    [null, 'Port Code', 'Number', 'Date', null, 'Integrated Tax(₹)', 'Cess(₹)', null],
+    ['20-04-2026', 'INNSA1', '1234567', '18-04-2026', 50000, 9000, 0, 'No'],
+    ['22-04-2026', 'INMAA1', '7654321', '21-04-2026', 10000, 1800, 0, 'No'],
+  ];
+  it('reads the IMPG sheet and matches by the bill of entry', () => {
+    const docs = twoBImports(impg, 'IMPG', { month: APR });
+    expect(docs).toHaveLength(2);
+    expect(docs[0]).toMatchObject({ section: 'IMPG', gstin: '', no: '1234567', boe: '1234567', date: dayOf('18-04-2026'), taxable: 50000, igst: 9000, name: 'Import, port INNSA1', month: APR });
+    const books = [doc('books', '', 'EXP-77', '18-04-2026', 50000, 9000, { boe: '1234567', kind: 'Bill of entry' }), doc('books', G1, '1234567', '21-04-2026', 10000, 1800)];
+    const r = reconcile(docs, books, { tol: 1, dates: false });
+    expect(r.lines.find((l) => l.b2?.boe === '1234567')).toMatchObject({ status: 'matched', notes: ['Same bill of entry number'] });
+    // A supplier invoice with the same number is not a bill of entry.
+    expect(r.lines.find((l) => l.b2?.boe === '7654321')?.status).toBe('only2b');
+    expect(suppliers(r.lines).find((s) => !s.gstin)?.name).toBe('Imports (bills of entry)');
+  });
+});
+
+describe('the ITC time limit (Section 16(4))', () => {
+  it('ends on 30 November after the financial year', () => {
+    expect(dayText(itcDeadline(dayOf('15-03-2026')))).toBe('30-11-2026');
+    expect(dayText(itcDeadline(dayOf('01-04-2026')))).toBe('30-11-2027');
+  });
+
+  it('flags open bills whose last date is near or past', () => {
+    const today = dayOf('26-11-2026')!;
+    // GSTR-2B of March 2026; A-2 is a year old, reported late.
+    const month = dayOf('01-03-2026');
+    const twoB = [doc('2b', G1, 'A-1', '10-03-2026', 1000, 180, { month }), doc('2b', G1, 'A-2', '10-03-2025', 500, 90, { month }), doc('2b', G1, 'A-3', '10-03-2026', 100, 18, { month })];
+    const books = [
+      doc('books', G1, 'B-9', '12-03-2026', 2000, 360),
+      doc('books', G1, 'A-3', '10-03-2026', 100, 18),
+      doc('books', G2, 'CN-1', '10-03-2026', -100, -18, { kind: 'Credit note' }),
+      // Outside the 2B months: not checked, so no time limit is pointed out.
+      doc('books', G2, 'B-1', '10-02-2026', 100, 18),
+    ];
+    const r = reconcile(twoB, books, { tol: 1, dates: false, today });
+    expect(r.lines.find((l) => l.bk?.no === 'B-1')).toMatchObject({ status: 'outside', notes: [] });
+    const of = (no: string) => r.lines.find((l) => l.b2?.no === no || l.bk?.no === no)!;
+    expect(of('A-1').notes).toContain('Take the ITC by 30-11-2026 (Section 16(4))');
+    expect(of('A-2').notes.join()).toContain('Time-barred');
+    expect(of('B-9').notes).toContain('Take the ITC by 30-11-2026 (Section 16(4))');
+    // Matched bills and credit notes have nothing to take.
+    expect(of('A-3').notes.join()).not.toContain('16(4)');
+    expect(of('CN-1').deadline).toBeNull();
+    const d = dues(r.lines, today);
+    expect(d.soon).toEqual([{ deadline: dayOf('30-11-2026'), count: 2, tax: 540, by: { only2b: { count: 1, tax: 180 }, onlyBooks: { count: 1, tax: 360 } } }]);
+    expect(d.barred[0]).toMatchObject({ count: 1, tax: 90 });
+  });
+});
+
+describe('months', () => {
+  it('notes bills booked in another month and adds up each month', () => {
+    const twoB = [doc('2b', G1, 'M-1', '28-04-2026', 1000, 180, { month: MAY }), doc('2b', G1, 'M-2', '05-04-2026', 500, 90)];
+    const books = [doc('books', G1, 'M-1', '28-04-2026', 1000, 180, { booked: dayOf('30-04-2026') }), doc('books', G1, 'M-2', '05-04-2026', 500, 90, { booked: dayOf('06-04-2026') })];
+    const r = reconcile(twoB, books, { tol: 1, dates: false });
+    expect(r.lines[0]).toMatchObject({ status: 'matched' });
+    expect(r.lines[0].notes).toContain('In GSTR-2B of May 2026, booked in Apr 2026');
+    expect(r.lines[1].notes.join()).not.toContain('booked in');
+    expect(monthly(r)).toEqual([
+      { month: APR, tax2b: 90, taxBooks: 270, otherMonth: 0 },
+      { month: MAY, tax2b: 180, taxBooks: 0, otherMonth: 180 },
+    ]);
+  });
+});
+
+describe('your decisions', () => {
+  const twoB = [doc('2b', G1, 'X9001', '15-04-2026', 3000, 540), doc('2b', G2, 'B-1', '10-04-2026', 2000, 360)];
+  const books = [doc('books', G1, 'BILL-9001', '15-04-2026', 3000, 540), doc('books', G2, 'Q/77', '12-04-2026', 2100, 378)];
+  const run = (decisions = { pairs: [] as string[], accept: [] as string[], reject: [] as string[] }) => reconcile(twoB, books, { tol: 1, dates: false, decisions });
+
+  it('confirms a probable pair, or turns it down', () => {
+    expect(run().lines[0].status).toBe('probable');
+    const key = pairKey(twoB[0], books[0]);
+    const ok = run({ pairs: [], accept: [key], reject: [] }).lines[0];
+    expect(ok).toMatchObject({ status: 'matched', decided: 'confirmed' });
+    expect(ok.notes).toContain('Confirmed by you');
+    const no = run({ pairs: [], accept: [], reject: [key] }).lines;
+    expect(no.map((l) => l.status).sort()).toEqual(['only2b', 'only2b', 'onlyBooks', 'onlyBooks']);
+  });
+
+  it('pairs two bills by hand, and still compares their amounts', () => {
+    const l = run({ pairs: [pairKey(twoB[1], books[1])], accept: [], reject: [] }).lines.find((x) => x.b2?.no === 'B-1')!;
+    expect(l).toMatchObject({ status: 'differs', decided: 'paired', bk: expect.objectContaining({ no: 'Q/77' }) });
+    expect(l.notes[0]).toBe('Paired by you');
+  });
+});
+
+describe('supplier follow-up', () => {
+  it('lists what the supplier has not reported, or reported short, with a message', () => {
+    const twoB = [doc('2b', G1, 'INV-46', '06-04-2026', 5000, 900, { ours: '27AAACZ0000Z1Z1' })];
+    const books = [
+      doc('books', G1, 'INV-46', '06-04-2026', 5100, 918, { name: 'Alpha Steel' }),
+      doc('books', G1, 'INV-50', '18-04-2026', 4000, 720, { name: 'Alpha Steel' }),
+      doc('books', G2, 'B-80', '20-04-2026', 1000, 180),
+      // Entered twice: the second copy is ours to correct, not the supplier's to report.
+      doc('books', G1, 'INV-46', '06-04-2026', 5100, 918, { name: 'Alpha Steel' }),
+    ];
+    const f = followUps(reconcile(twoB, books, { tol: 1, dates: false }));
+    expect(f.map((x) => [x.gstin, x.tax, x.lines.length])).toEqual([
+      [G1, 738, 2],
+      [G2, 180, 1],
+    ]);
+    expect(f[0].text).toContain('Dear Alpha Steel,');
+    expect(f[0].text).toContain('our GSTIN 27AAACZ0000Z1Z1');
+    expect(f[0].text).toContain('This bill is not in it, so we cannot take the input tax credit.');
+    expect(f[0].text).toContain('1. Invoice INV-50 dated 18-04-2026: taxable ₹4,000.00, tax ₹720.00');
+    expect(f[0].text).toContain('1. Invoice INV-46 dated 06-04-2026: tax ₹918.00 charged, ₹900.00 reported');
   });
 });
 
@@ -142,12 +275,13 @@ describe('GSTR-2B JSON', () => {
     const p = makeGstr2b(XLSX, ExcelJS).parsePortal(XLSX.read(fs.readFileSync(path.join(dir, 'gstr2b-apr-2026.xlsx'))), 'x');
     const excel = twoBDocs(p.sheets, { ours: p.gstin });
     const j = twoBJson(JSON.parse(fs.readFileSync(path.join(dir, 'gstr2b-apr-2026.json'), 'utf8')), 'gstr2b-apr-2026.json');
-    expect(j).toMatchObject({ kind: 'GSTR-2B', gstin: p.gstin, month: APR, errors: [] });
-    expect(j.warnings.join(' ')).toContain('1 ISD and import entries');
+    expect(j).toMatchObject({ kind: 'GSTR-2B', gstin: p.gstin, month: APR, errors: [], warnings: [] });
     expect(excel).toHaveLength(8);
-    expect(same(j.docs)).toEqual(same(excel));
+    expect(same(j.docs.filter((d) => !d.boe))).toEqual(same(excel));
     expect(j.docs.find((d) => d.kind === 'Credit note')).toMatchObject({ no: 'CN-3', taxable: -1000, igst: -180 });
-  });
+    // The import is read too, by its bill of entry.
+    expect(j.docs.find((d) => d.boe)).toMatchObject({ section: 'IMPG', gstin: '', boe: '1234567', kind: 'Bill of entry', date: dayOf('18-04-2026'), taxable: 50000, igst: 9000, month: APR, name: 'Import, port INNSA1' });
+  }, 30000);
 
   it('reads amendments, debit notes and the older GSTR-2A layout', () => {
     const r = twoBJson({
@@ -211,6 +345,12 @@ describe('end to end: portal GSTR-2B files and a Tally purchase register', () =>
     // The report opens and has a sheet per outcome.
     const book = new ExcelJS.Workbook();
     await book.xlsx.load((await reconWorkbook(res, { twoB: 'test', books: 'test', tol: 1, date: '25-11-2026' })) as never);
-    expect(book.worksheets.map((w) => w.name)).toEqual(['Summary', 'All documents', 'Amounts differ', 'Probable matches', 'Not in books', 'Not in 2B', 'Outside 2B months', 'Suppliers']);
-  });
+    expect(book.worksheets.map((w) => w.name)).toEqual(['Summary', 'Month-wise', 'All documents', 'Amounts differ', 'Probable matches', 'Not in books', 'Not in 2B', 'Outside 2B months', 'Suppliers', 'Supplier follow-up']);
+    // The bill booked in April but in May's GSTR-2B is pointed out.
+    expect(res.lines.find((l) => l.b2?.no === 'INV/2026-27/0061')?.notes).toContain('In GSTR-2B of May 2026, booked in Apr 2026');
+    const months = monthly(res);
+    expect(months.map((m) => m.tax2b)).toEqual([5460, 2820]);
+    expect(months.reduce((s, m) => s + m.tax2b, 0)).toBe(t.all.tax2b);
+    expect(book.getWorksheet('Supplier follow-up')!.rowCount).toBe(1 + followUps(res).length);
+  }, 30000);
 });
