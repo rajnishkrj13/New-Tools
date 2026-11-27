@@ -49,7 +49,7 @@ describe('tool and landing page catalogue', () => {
       'image-to-text': (p) => ['eng', 'hin', 'eng+hin'].includes(p.lang),
       'excel-to-tally-xml-converter': (p) => p.source === 'xml',
       'tally-xml-import': (p) => p.accept === 'excel',
-      'qr-code-generator': (p) => (p.type === undefined || isQrType(p.type)) && (p.logo === undefined || ['on', 'off'].includes(p.logo)),
+      'qr-code-generator': (p) => (p.type === undefined || isQrType(p.type)) && (p.logo === undefined || ['on', 'off'].includes(p.logo)) && (p.mode === undefined || p.mode === 'bulk'),
     };
     for (const t of [...LANDING_PAGES, ...QR_PAGES, ...TALLY_PAGES]) {
       expect(toolBySlug.has(t.opens!), `${t.slug} opens ${t.opens}`).toBe(true);

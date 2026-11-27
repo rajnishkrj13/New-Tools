@@ -76,6 +76,18 @@ export function Sections({ sections }: { sections: Section[] }) {
               </table>
             </div>
           )}
+          {s.images && (
+            <div className="mb-4 grid max-w-[68rem] grid-cols-2 gap-4 lg:grid-cols-4">
+              {s.images.map((im) => (
+                <figure key={im.src} className="m-0">
+                  {/* Plain images: small, already sized, and their own address is what image search lists. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={im.src} alt={im.alt} width={im.width} height={im.height} loading="lazy" decoding="async" className="h-auto w-full border border-rule bg-white" />
+                  {im.caption && <figcaption className="mt-1.5 text-[0.85rem] text-ink-2">{im.caption}</figcaption>}
+                </figure>
+              ))}
+            </div>
+          )}
         </section>
       ))}
     </>

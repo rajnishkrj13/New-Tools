@@ -1,6 +1,6 @@
 import { EDITOR_PAGES } from './editor-pages';
 import { LANDING_PAGES } from './landing-pages';
-import { QR_PAGES, QR_TOOL } from './qr-pages';
+import { QR_PAGES, QR_SCANNER, QR_TOOL } from './qr-pages';
 import { TALLY_PAGES, TALLY_TOOLS } from './tally-pages';
 import { DOC_TOOLS } from './document-pages';
 
@@ -89,6 +89,8 @@ export interface Section {
   body?: string[];
   list?: string[];
   table?: { head: string[]; rows: string[][] };
+  /** Example pictures (files in /public), shown after the text and listed in the image sitemap. */
+  images?: { src: string; alt: string; caption?: string; width: number; height: number }[];
 }
 
 /** Date the catalogue's text was last revised; pages without their own date use it. */
@@ -285,6 +287,7 @@ export const CATEGORIES: Category[] = [
           'Contact details: [vCard](/vcard-qr-code-generator) for a person, [Business](/business-qr-code-generator) for a shop or company.',
           'Places and profiles: [Google Maps](/google-maps-qr-code-generator), [Instagram](/instagram-qr-code-generator) and [YouTube](/youtube-qr-code-generator).',
           'Files and pages: [PDF](/pdf-qr-code-generator), [website link](/url-qr-code-generator) and [plain text](/text-qr-code-generator).',
+          'Many at once and reading codes: the [Bulk QR Code Generator](/bulk-qr-code-generator) makes up to 500 from a list or Excel, and the [QR Code Scanner](/qr-code-scanner) reads a code from a picture, screenshot or camera.',
         ],
       },
       {
@@ -1270,7 +1273,7 @@ export const TOOLS: Tool[] = [
 
 // Landing pages for each PDF editor search intent (sign, fill forms, OCR, redact...), and for
 // the exact searches people make for the other tools (compress to 20 KB, PNG to JPG...).
-TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES, QR_TOOL, ...QR_PAGES, ...TALLY_TOOLS, ...TALLY_PAGES, ...DOC_TOOLS);
+TOOLS.push(...EDITOR_PAGES, ...LANDING_PAGES, QR_TOOL, ...QR_PAGES, QR_SCANNER, ...TALLY_TOOLS, ...TALLY_PAGES, ...DOC_TOOLS);
 
 export const toolBySlug = new Map(TOOLS.map((t) => [t.slug, t]));
 export const categoryById = new Map(CATEGORIES.map((c) => [c.id, c]));

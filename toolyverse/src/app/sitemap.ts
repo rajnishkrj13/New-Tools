@@ -24,6 +24,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly' as const,
       // The PDF editor and its pages are what the site most wants found.
       priority: t.slug === 'pdf-editor' ? 1 : t.opens === 'pdf-editor' ? 0.9 : 0.8,
+      // Example pictures on the page, for image search.
+      ...((t.sections ?? []).some((s) => s.images?.length) ? { images: (t.sections ?? []).flatMap((s) => s.images ?? []).map((im) => abs(im.src)) } : {}),
       ...(t.alternates
         ? { alternates: { languages: { [t.lang === 'hi' ? 'hi-IN' : 'en-IN']: abs(toolPath(t)), ...Object.fromEntries(Object.entries(t.alternates).map(([l, p]) => [l, abs(p)])) } } }
         : {}),

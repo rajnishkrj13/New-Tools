@@ -10,6 +10,15 @@ import type { Tool } from './registry';
 const UPDATED = '2026-11-18';
 const qr = { category: 'qr', opens: 'qr-code-generator', updated: UPDATED } as const;
 
+/** Example codes made with the generator (each scans, and opens the page for that kind of code). */
+const EX = '/images/qr-examples';
+const EXAMPLES = {
+  cafe: { src: `${EX}/qr-code-with-logo-cafe-menu.png`, alt: 'QR code with a coffee cup logo in the centre, brown rounded dots and rounded corners, for a café menu', caption: 'Café menu: brown rounded dots, a circle behind the logo.', width: 720, height: 720 },
+  shop: { src: `${EX}/qr-code-with-logo-shop.png`, alt: 'QR code with a shopping bag logo on a white plate, navy squares and orange corner squares', caption: 'Shop: classic squares in navy, corners in the brand’s orange.', width: 720, height: 720 },
+  wifi: { src: `${EX}/qr-code-with-logo-wifi.png`, alt: 'QR code with a WiFi logo in a white circle, rounded dots in a teal to purple gradient and round corners', caption: 'WiFi: a colour gradient with round corners.', width: 720, height: 720 },
+  brand: { src: `${EX}/qr-code-with-logo-brand.png`, alt: 'QR code with a green leaf brand logo, black rounded dots and green corner squares', caption: 'Brand logo: black dots, corners in the logo’s green.', width: 720, height: 720 },
+};
+
 export const QR_TOOL: Tool = {
   slug: 'qr-code-generator',
   category: 'qr',
@@ -45,6 +54,7 @@ export const QR_TOOL: Tool = {
         'Pick a background for the logo: a white rounded or circular plate makes it stand out and keeps the squares around it clear.',
         'Wait for “Scan check passed”, then download. See [QR Code Generator with Logo](/qr-code-generator-with-logo) for design tips.',
       ],
+      images: [EXAMPLES.cafe, EXAMPLES.shop],
     },
     {
       h2: 'How to create a QR code without a logo',
@@ -128,12 +138,12 @@ export const QR_TOOL: Tool = {
     'Error correction L, M, Q and H, and adjustable margin',
     'Download PNG, JPG, SVG and PDF up to 2048 px',
     'Built-in scan check before download',
-    'Make up to 100 QR codes at once',
+    'Make up to 500 QR codes at once, from a list or Excel',
     'Recent codes remembered in your browser',
   ],
   features: [
     { key: 'logo', label: 'Logo in the centre', hint: 'The “With logo” mode and logo upload', default: true },
-    { key: 'batch', label: 'Many codes at once', hint: 'Make up to 100 codes from a list and download them as a PDF or PNGs', default: true },
+    { key: 'batch', label: 'Many codes at once', hint: 'Make up to 500 codes from a list or Excel file and download them as a PDF or a ZIP', default: true },
     { key: 'history', label: 'Recent codes', hint: 'Remembers the last 12 codes in the visitor’s browser', default: true },
   ],
   limits: { publicMb: 5, memberMb: 10 },
@@ -163,8 +173,8 @@ export const QR_PAGES: Tool[] = [
     preset: { logo: 'on' },
     name: 'QR Code Generator with Logo',
     short: 'Put your brand logo in the centre of a QR code',
-    title: 'QR Code Generator with Logo – Free, Custom Colours',
-    description: 'Create a QR code with your logo in the centre. Upload PNG, JPG or SVG, pick colours and shapes, and download a scannable code in PNG, SVG or PDF. Free.',
+    title: 'QR Code Generator with Logo – Free, Never Expires',
+    description: 'Create a QR code with your logo in the centre: free, no sign-up, no watermark, and it never expires. Pick colours and shapes; download PNG, SVG or PDF.',
     h1: 'QR code generator with logo',
     intro:
       'A QR code with your logo in the middle looks like part of your brand instead of a random barcode, and people trust it more. Upload your logo, choose how big it should be and what sits behind it, and match the colours to your brand. Every code is read back automatically, so you see straight away whether the logo is getting in the way.',
@@ -175,6 +185,11 @@ export const QR_PAGES: Tool[] = [
         body: [
           'QR codes are built to survive damage. Error correction stores part of the information more than once, so a scanner can rebuild what is missing. At level H, up to 30% of the code can be covered and it still reads. When you add a logo, the generator switches to H and removes the squares behind the logo completely, rather than painting over them, which keeps the edge around the logo clean for the camera.',
         ],
+      },
+      {
+        h2: 'Examples of QR codes with a logo',
+        body: ['All four were made with this generator and scan with any phone. Try one: each opens the page for that kind of code.'],
+        images: [EXAMPLES.cafe, EXAMPLES.shop, EXAMPLES.wifi, EXAMPLES.brand],
       },
       {
         h2: 'Design tips for a logo QR code',
@@ -201,7 +216,7 @@ export const QR_PAGES: Tool[] = [
       { q: 'Can I use a QR code with logo on my business card?', a: 'Yes. Download the SVG for the sharpest print and keep the code at least 2 cm wide.' },
     ],
     related: ['qr-code-generator', 'business-qr-code-generator', 'vcard-qr-code-generator', 'qr-code-generator-without-logo'],
-    keywords: ['qr code generator with logo', 'qr code with logo free', 'qr code with image in center', 'qr code with brand logo', 'qr code with company logo', 'qr code with picture', 'custom qr code with logo'],
+    keywords: ['qr code generator with logo', 'qr code with logo free', 'free qr code generator with logo no expiration', 'qr code generator with logo no sign up', 'qr code with image in center', 'qr code with brand logo', 'qr code with company logo', 'qr code with picture', 'custom qr code with logo'],
   },
   {
     ...qr,
@@ -275,7 +290,7 @@ export const QR_PAGES: Tool[] = [
           'All types: websites, WiFi, UPI, WhatsApp, contacts, maps, events, social media and more.',
           'All designs: logo upload, colours, gradients, rounded and dot patterns.',
           'All downloads: PNG, JPG, SVG and print-ready PDF, up to 2048 pixels.',
-          'Many at once: up to 100 codes from a list, in one PDF.',
+          'Many at once: up to 500 codes from a list or Excel, as one PDF or a ZIP: see the [Bulk QR Code Generator](/bulk-qr-code-generator).',
           'No catch: no watermark, no account, no adverts inside the code, no limit.',
         ],
       },
@@ -289,10 +304,71 @@ export const QR_PAGES: Tool[] = [
     faqs: [
       { q: 'Why do other free QR codes stop working?', a: 'They are dynamic codes that point to the provider’s server, which stops redirecting when a trial ends. Codes made here hold your link directly and never stop.' },
       { q: 'Do I need to register?', a: 'No. There is no sign-up and no email needed to make or download codes.' },
-      { q: 'Is there a limit on how many codes I can make?', a: 'No. Make as many as you need, and up to 100 at a time from a list.' },
+      { q: 'Is there a limit on how many codes I can make?', a: 'No. Make as many as you need, and up to 500 at a time with the [Bulk QR Code Generator](/bulk-qr-code-generator).' },
     ],
     related: ['qr-code-generator', 'qr-code-generator-with-logo', 'url-qr-code-generator', 'upi-qr-code-generator'],
     keywords: ['free qr code generator', 'qr code generator free', 'free qr code generator no sign up', 'free qr code generator without registration', 'qr code that never expires', 'free qr maker', 'best free qr code maker online'],
+  },
+  {
+    ...qr,
+    slug: 'bulk-qr-code-generator',
+    no: 79,
+    preset: { mode: 'bulk' },
+    name: 'Bulk QR Code Generator',
+    short: 'Up to 500 QR codes at once, from a list or Excel',
+    title: 'Bulk QR Code Generator – 500 Codes from Excel, Free',
+    description: 'Make up to 500 QR codes at once from a list or an Excel or CSV file, with your logo and colours. Download one PDF to print, or a ZIP of PNG or SVG files. Free.',
+    h1: 'Bulk QR code generator',
+    intro:
+      'Make hundreds of QR codes in one go: product labels, table numbers, asset tags, event passes or one code per student. Paste a list or load it from Excel, choose one design for all of them, and download a print-ready PDF sheet or a ZIP with one image per code, each named after its row. Everything happens in your browser, and the codes never expire.',
+    steps: [
+      'Paste your links or texts, one per line, or load them from an Excel or CSV file.',
+      'Optional: add a second column with a name for each code, printed under it and used as the file name.',
+      'Choose the design below: colours, dot shape and your logo apply to every code.',
+      'Download one PDF with six codes to a page, or a ZIP of PNG or SVG files.',
+    ],
+    sections: [
+      {
+        h2: 'How to make QR codes in bulk from Excel',
+        list: [
+          'Column A: what each code should hold, such as a product link, a serial number or a ticket ID.',
+          'Column B (optional): a name for each code, such as the product name or table number. It is printed under the code in the PDF and used as the file name in the ZIP.',
+          'Load the file: choose “Load a list from Excel or CSV”. A first row with headings like “URL” or “Name” is skipped.',
+          'Or copy the two columns in Excel and paste them straight into the box: the tab between them is kept.',
+          'Check the previews, then download. Up to 500 codes at a time; split longer lists into parts.',
+        ],
+      },
+      {
+        h2: 'What people make bulk QR codes for',
+        list: [
+          'Products and stock: one code per item linking to its page, or holding its SKU or batch number.',
+          'Restaurants: one code per table for the menu or ordering page, each labelled with the table number.',
+          'Assets and equipment: codes for laptops, machines and furniture that open their record or service history.',
+          'Events: one code per guest or ticket holding a pass ID that the entry desk can scan.',
+          'Schools and coaching: one code per student or roll number, or per chapter of study material.',
+          'Shops with many outlets: one UPI or Google review code per branch.',
+        ],
+      },
+      {
+        h2: 'PDF sheet or ZIP of images?',
+        table: {
+          head: ['Download', 'Best for', 'What you get'],
+          rows: [
+            ['PDF', 'Printing labels and stickers at home or at a shop', 'A4 pages, six codes to a page, each with its name underneath'],
+            ['PNG in a ZIP', 'Websites, emails, WhatsApp and Word', 'One 1024-pixel image per code, numbered and named'],
+            ['SVG in a ZIP', 'Designers and label printers (CorelDRAW, Illustrator, Canva)', 'One vector file per code: sharp at any size'],
+          ],
+        },
+      },
+    ],
+    faqs: [
+      { q: 'How many QR codes can I make at once?', a: 'Up to 500 in one go. For a longer list, make them in parts of 500. There is no daily limit.' },
+      { q: 'Can I add my logo to all the codes?', a: 'Yes. Upload the logo in the design section; every code in the batch gets it, with the same colours and dot shape.' },
+      { q: 'Can I make QR codes from an Excel file?', a: 'Yes. Load an .xlsx, .xls or .csv file: the first column becomes the codes, the second their names. Or paste the two columns copied from Excel.' },
+      { q: 'Are bulk QR codes free?', a: 'Yes, with no sign-up and no watermark. They are static codes that never expire, and your list stays on your device.' },
+    ],
+    related: ['qr-code-generator', 'qr-code-generator-with-logo', 'url-qr-code-generator', 'text-qr-code-generator'],
+    keywords: ['bulk qr code generator', 'bulk qr code generator from excel', 'generate multiple qr codes', 'batch qr code generator', 'mass qr code generator', 'bulk qr code generator free', 'qr codes from excel list', 'bulk qr code with logo'],
   },
 
   // ---- Types -----------------------------------------------------------------------------------------
@@ -473,12 +549,12 @@ export const QR_PAGES: Tool[] = [
     preset: { type: 'whatsapp' },
     name: 'WhatsApp QR Code Generator',
     short: 'Start a WhatsApp chat with one scan',
-    title: 'WhatsApp QR Code Generator – Chat Link with Message',
-    description: 'Create a WhatsApp QR code that opens a chat with your number and a ready-typed message. For shops, orders and support. Download free in PNG, SVG or PDF.',
+    title: 'WhatsApp QR Code Generator – With Logo & Message',
+    description: 'Create a WhatsApp QR code that opens a chat with your number and a ready message, with your logo if you like. For shops and orders. Free PNG, SVG or PDF.',
     h1: 'WhatsApp QR code generator',
     intro:
       'A WhatsApp QR code opens a chat with your number in one scan, with a message already typed in for the customer, such as “Hi, I want to place an order”. They do not need to save your number first. It works with WhatsApp and WhatsApp Business.',
-    steps: ['Enter your WhatsApp number with the country code (91 for India).', 'Optional: type the message customers will start with.', 'Download the code and put it on your shop board, packaging or ads.'],
+    steps: ['Enter your WhatsApp number with the country code (91 for India).', 'Optional: type the message customers will start with.', 'Optional: choose “With logo” and upload your shop logo, and pick colours.', 'Download the code and put it on your shop board, packaging or ads.'],
     sections: [
       {
         h2: 'Messages that get customers talking',
@@ -502,7 +578,7 @@ export const QR_PAGES: Tool[] = [
       { q: 'Can I change the message later?', a: 'Not on a printed code. Make a new code if you want a different starting message.' },
     ],
     related: ['qr-code-generator', 'business-qr-code-generator', 'upi-qr-code-generator', 'instagram-qr-code-generator'],
-    keywords: ['whatsapp qr code generator', 'whatsapp qr code', 'create qr code for whatsapp link', 'whatsapp chat qr code', 'wa.me qr code', 'whatsapp business qr code'],
+    keywords: ['whatsapp qr code generator', 'whatsapp qr code', 'create qr code for whatsapp link', 'whatsapp chat qr code', 'wa.me qr code', 'whatsapp business qr code', 'whatsapp qr code generator with logo free'],
   },
   {
     ...qr,
@@ -574,7 +650,7 @@ export const QR_PAGES: Tool[] = [
       {
         h2: 'Making codes look like your brand',
         body: [
-          'Use the same logo and colours on all your codes so customers recognise them, and label each one: “Scan to pay”, “Scan for menu”, “Review us on Google”. A code with no label gets far fewer scans. The batch maker at the bottom of the generator creates many codes in one go, for example a code per product or per table, in one printable PDF.',
+          'Use the same logo and colours on all your codes so customers recognise them, and label each one: “Scan to pay”, “Scan for menu”, “Review us on Google”. A code with no label gets far fewer scans. The [Bulk QR Code Generator](/bulk-qr-code-generator) creates many codes in one go, for example a code per product or per table, in one printable PDF.',
         ],
       },
     ],
@@ -803,7 +879,7 @@ export const QR_PAGES: Tool[] = [
           'Label it: “Scan for menu” beside the code, in large letters.',
           'Size: at least 3 × 3 cm on table tents, bigger on walls.',
           'Several codes: next to the menu code, add [WiFi](/wifi-qr-code-generator), [UPI payment](/upi-qr-code-generator) and [Google review](/google-review-qr-code-generator) codes in the same design.',
-          'Table numbers: make one code per table with the batch maker at the bottom of the generator if your ordering link includes the table number.',
+          'Table numbers: make one code per table with the [Bulk QR Code Generator](/bulk-qr-code-generator) if your ordering link includes the table number; name each row after its table.',
           'Keep a few paper menus for guests without smartphones.',
         ],
       },
@@ -817,3 +893,67 @@ export const QR_PAGES: Tool[] = [
     keywords: ['menu qr code generator', 'qr code for restaurant menu', 'qr code generator for menu', 'digital menu qr code', 'qr code for cafe', 'qr code generator for restaurant', 'qr code for hotel'],
   },
 ];
+
+/** The QR Code Scanner: its own tool, reading codes instead of making them. */
+export const QR_SCANNER: Tool = {
+  slug: 'qr-code-scanner',
+  category: 'qr',
+  no: 80,
+  updated: '2026-11-27',
+  name: 'QR Code Scanner',
+  short: 'Read a QR code from a picture, screenshot or camera',
+  title: 'QR Code Scanner – Scan from Image or Camera, Free',
+  description: 'Scan a QR code from a photo, a screenshot or your camera, in the browser. See the link, WiFi password, UPI ID or contact before you open it. Free and private.',
+  h1: 'QR code scanner: from an image or the camera',
+  intro:
+    'Read a QR code without an app: drop a photo or screenshot here, paste one with Ctrl+V, or point your camera at the code. You see what it holds in plain words, such as the website it opens, the WiFi password, the name behind a UPI ID or a contact’s number, before you act on it. Pictures are read on your device and never uploaded.',
+  steps: [
+    'Drop a picture or screenshot of the QR code, paste it with Ctrl+V, or choose “Use the camera”.',
+    'Read what the code holds: the link and its website, the payee of a UPI code, a WiFi password or a contact.',
+    'Open the link, pay, call or copy the text, once you are happy it is what you expected.',
+  ],
+  sections: [
+    {
+      h2: 'How to scan a QR code from a screenshot or photo',
+      list: [
+        'On a computer: take a screenshot (Windows: Win + Shift + S; Mac: Cmd + Shift + 4), then press Ctrl+V or Cmd+V on this page.',
+        'On a phone: save the picture or take a screenshot, then choose it with the button above. This is how to scan a code that someone sent you on WhatsApp.',
+        'Several codes in one picture: all of them are read, each shown separately.',
+        'If nothing is found: crop closer to the code, make sure it is sharp, and do not cut off its edges. A screenshot of a screen works better than a photo of one.',
+      ],
+    },
+    {
+      h2: 'Check a payment QR code before you pay',
+      body: [
+        'Fake QR codes are a common way to steal money over UPI: a sticker pasted over a shop’s real code, or a code sent by a “buyer” who claims it will send you money. Scanning here first shows the UPI ID, the name and any amount inside the code, so you can see whether it really belongs to the person you mean to pay.',
+        'Remember: you never need to scan a QR code or enter your UPI PIN to receive money. A code that asks for your PIN is always a payment out of your account.',
+      ],
+    },
+    {
+      h2: 'What the scanner reads',
+      table: {
+        head: ['Code', 'What you see'],
+        rows: [
+          ['Website link', 'The full address and the website it belongs to, with a warning for short links and addresses that are not secure'],
+          ['UPI payment', 'UPI ID, name, amount and note'],
+          ['WiFi', 'Network name, password and security type, with a button to copy the password'],
+          ['Contact card (vCard)', 'Name, phone numbers, email, company and address'],
+          ['WhatsApp, email, SMS, phone', 'The number or address and any ready message'],
+          ['Location and calendar event', 'The place on Google Maps, or the event’s title, time and place'],
+          ['Anything else', 'The text exactly as it is stored in the code'],
+        ],
+      },
+    },
+  ],
+  faqs: [
+    { q: 'Can I scan a QR code from an image in my gallery?', a: 'Yes. Choose the picture with the button above, or drop it on the page. Screenshots, photos and saved images (PNG, JPG, WebP) all work.' },
+    { q: 'How do I scan a QR code on my laptop?', a: 'Take a screenshot of the code and paste it here with Ctrl+V, or choose “Use the camera” to use the laptop’s webcam.' },
+    { q: 'Is the picture uploaded anywhere?', a: 'No. It is read in your browser, on your device. Nothing is sent to a server, so private codes such as WiFi passwords stay private.' },
+    { q: 'Why is no QR code found in my picture?', a: 'The code may be too small, blurred or cut off at the edge, or very low in contrast. Crop closer to the code or take a sharper photo. A screenshot of a screen reads better than a photo of the screen.' },
+    { q: 'Can it read barcodes too?', a: 'It reads QR codes. Ordinary product barcodes (the lines on packets) are a different kind of code.' },
+  ],
+  featureList: ['Scan QR codes from photos, screenshots and saved images', 'Paste a screenshot with Ctrl+V', 'Scan with the phone or laptop camera', 'Reads several codes in one picture', 'Shows links, UPI payments, WiFi passwords, contacts, events and more in plain words', 'Warnings for short links, insecure links and payment codes', 'Works offline in the browser: nothing uploaded'],
+  limits: { publicMb: 15, memberMb: 30 },
+  related: ['qr-code-generator', 'upi-qr-code-generator', 'wifi-qr-code-generator', 'bulk-qr-code-generator'],
+  keywords: ['qr code scanner', 'scan qr code from image', 'qr code reader online', 'qr scanner from gallery', 'scan qr code from screenshot', 'qr code scanner online free', 'read qr code from photo', 'scan qr code on laptop', 'check upi qr code'],
+};

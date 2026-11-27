@@ -61,7 +61,8 @@ export async function pdfBlob(codes: { svg: string; label?: string }[], opts: { 
     const page = doc.addPage([W, H]);
     for (let j = 0; j < per && i + j < codes.length; j++) {
       const { svg, label } = codes[i + j];
-      const png = await doc.embedPng(await (await pngBlob(svg, 2048)).arrayBuffer());
+      // Six to a page, 1024 px is over 300 dpi and keeps a sheet of hundreds quick to make.
+      const png = await doc.embedPng(await (await pngBlob(svg, per === 1 ? 2048 : 1024)).arrayBuffer());
       const col = j % cols;
       const row = Math.floor(j / cols);
       const slotW = (W - 80) / cols;

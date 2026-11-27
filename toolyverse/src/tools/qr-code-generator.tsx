@@ -43,6 +43,8 @@ export default function QrCodeGenerator(props: ToolProps) {
   const allowLogo = props.features.logo !== false;
   const allowBatch = props.features.batch !== false;
   const allowHistory = props.features.history !== false;
+  // The bulk page: the list comes first, the design below it applies to every code.
+  const bulk = allowBatch && props.preset?.mode === 'bulk';
 
   const startType: QrType = isQrType(props.preset?.type) ? props.preset.type : 'url';
   const [withLogo, setWithLogo] = useState(allowLogo && props.preset?.logo === 'on');
@@ -185,6 +187,7 @@ export default function QrCodeGenerator(props: ToolProps) {
 
   return (
     <Bench>
+      {bulk && <Batch style={effective} first />}
       <div className="flex flex-wrap items-center gap-3">
         {allowLogo && (
           <Segmented
@@ -463,7 +466,7 @@ export default function QrCodeGenerator(props: ToolProps) {
         </section>
       )}
 
-      {allowBatch && <Batch style={effective} />}
+      {allowBatch && !bulk && <Batch style={effective} />}
     </Bench>
   );
 }
@@ -592,33 +595,180 @@ function HistoryThumb({ item }: { item: Saved }) {
   return src ? <img src={src} alt="" className="aspect-square w-full" /> : <span className="block aspect-square w-full bg-paper-2" />;
 }
 
-/** Many codes at once: one link or text per line, same design, as one PDF sheet or separate PNGs. */
-function Batch({ style }: { style: QrStyle }) {
+
+/** The most codes made at once. */
+const BATCH_LIMIT = 500;
+/** Previews shown; all of them are in the downloads. */
+const BATCH_SHOWN = 60;
+/** A first row that only names the columns. */
+const HEADING = /^(urls?|links?|data|content|text|qr( ?code)?|website|value|name|label|title)s?$/i;
+
+/** One per line: what the code holds, then (after a tab, as pasted from Excel) a name for it. */
+function batchRows(text: string): { data: string; label: string }[] {
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.split('\t').map((c) => c.trim()))
+    .filter((c) => c[0])
+    .map(([data, label]) => ({ data, label: label || data }));
+}
+
+/**
+ * Many codes at once: one per line, or a list loaded from Excel, CSV or text, all in the design
+ * chosen for the single code. Downloads as one PDF sheet or a ZIP of PNG or SVG files.
+ * On the bulk page it opens first; elsewhere it waits, closed, under the generator.
+ */
+function Batch({ style, first = false }: { style: QrStyle; first?: boolean }) {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const lines = useMemo(
-    () =>
-      text
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .slice(0, 100),
-    [text],
-  );
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ tone: 'info' | 'warn' | 'bad'; text: string } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const all = useMemo(() => batchRows(text), [text]);
   const codes = useMemo(
     () =>
-      lines.map((line) => {
+      all.slice(0, BATCH_LIMIT).map((r) => {
         try {
-          return { line, svg: renderSvg(encode(line, style.ecc), style) };
+          return { ...r, svg: renderSvg(encode(r.data, style.ecc), style) };
         } catch (e) {
-          return { line, error: (e as Error).message };
+          return { ...r, error: (e as Error).message };
         }
       }),
-    [lines, style],
+    [all, style],
   );
-  const good = codes.filter((c): c is { line: string; svg: string } => 'svg' in c && !!c.svg);
-  return (
+  const good = codes.filter((c): c is { data: string; label: string; svg: string } => 'svg' in c && !!c.svg);
+
+  /** A list from a file: the first column is what each code holds, the second (if any) its name. */
+  const load = async (file: File | undefined) => {
+    if (!file) return;
+    setMsg(null);
+    try {
+      let table: string[][];
+      if (/\.(txt|text)$/i.test(file.name) || file.type === 'text/plain') table = (await file.text()).split(/\r?\n/).map((l) => l.split('\t'));
+      else {
+        const XLSX = await import('xlsx');
+        const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '', blankrows: false }) as unknown[][];
+        table = aoa.map((r) => r.map((v) => String(v ?? '').trim()));
+      }
+      const lines = table.map((r) => r.map((c) => c.replace(/\t/g, ' ').trim()).filter((c, i) => i < 2 && (i === 0 || c))).filter((r) => r[0]);
+      if (lines.length > 1 && HEADING.test(lines[0][0])) lines.shift();
+      if (!lines.length) return setMsg({ tone: 'bad', text: `${file.name} has nothing in its first column.` });
+      setText(lines.map((r) => r.join('\t')).join('\n'));
+      setMsg({ tone: 'info', text: `${lines.length} ${lines.length === 1 ? 'row' : 'rows'} loaded from ${file.name}${lines.length > BATCH_LIMIT ? `; the first ${BATCH_LIMIT} are made` : ''}.` });
+    } catch {
+      setMsg({ tone: 'bad', text: `${file.name} could not be read. Use Excel (.xlsx, .xls), CSV or a text file.` });
+    }
+  };
+
+  const zip = async (kind: 'png' | 'svg') => {
+    setBusy(`Making ${good.length} ${kind.toUpperCase()} files…`);
+    setMsg(null);
+    try {
+      const [{ default: JSZip }, { pngBlob, svgBlob }] = await Promise.all([import('jszip'), import('@/lib/qr/export')]);
+      const z = new JSZip();
+      const used = new Set<string>();
+      for (const [i, c] of good.entries()) {
+        let name = `${String(i + 1).padStart(3, '0')}-${slugOf(c.label)}`;
+        while (used.has(name)) name += '-';
+        used.add(name);
+        z.file(`${name}.${kind}`, kind === 'png' ? await pngBlob(c.svg, 1024) : svgBlob(c.svg, 1024));
+      }
+      download(await z.generateAsync({ type: 'blob' }), `qr-codes-${kind}.zip`);
+    } catch (e) {
+      setMsg({ tone: 'bad', text: `The ZIP could not be made: ${(e as Error).message}` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const body = (
+    <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <label htmlFor="qr-batch" className="label mb-1 block">
+          One per line, up to {BATCH_LIMIT}: a link or text, and optionally a tab and a name
+        </label>
+        <textarea
+          id="qr-batch"
+          className="field min-h-[200px] font-mono text-[0.85rem]"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={'https://example.com/product-1\nhttps://example.com/product-2\tProduct 2\nTable 3'}
+          spellCheck={false}
+        />
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[0.85rem]">
+          <button type="button" className="btn btn-ghost !min-h-9 text-sm" onClick={() => fileInput.current?.click()}>
+            Load a list from Excel or CSV
+          </button>
+          <span className="text-ink-3">First column: what the code holds. Second column (optional): a name under the code and for the file.</span>
+          <input
+            ref={fileInput}
+            type="file"
+            hidden
+            accept=".xlsx,.xls,.csv,.tsv,.txt,text/csv,text/plain"
+            onChange={(e) => {
+              void load(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+        </div>
+        <p className="mt-1 text-[0.8rem] text-ink-3">Every code uses the colours, shape and logo chosen {first ? 'below' : 'above'}.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn"
+            disabled={!good.length || !!busy}
+            onClick={async () => {
+              setBusy(`Making a PDF of ${good.length} codes…`);
+              try {
+                const { pdfBlob } = await import('@/lib/qr/export');
+                download(await pdfBlob(good.map((c) => ({ svg: c.svg, label: c.label }))), 'qr-codes.pdf');
+              } finally {
+                setBusy(null);
+              }
+            }}
+          >
+            {good.length ? `Download ${good.length} as PDF` : 'Download as PDF'}
+          </button>
+          <button type="button" className="btn btn-ghost" disabled={!good.length || !!busy} onClick={() => void zip('png')}>
+            PNGs in a ZIP
+          </button>
+          <button type="button" className="btn btn-ghost" disabled={!good.length || !!busy} onClick={() => void zip('svg')}>
+            SVGs in a ZIP
+          </button>
+        </div>
+        {busy && <p className="label mt-2">{busy}</p>}
+        {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+        {all.length > BATCH_LIMIT && (
+          <Notice tone="warn">
+            {all.length} lines: the first {BATCH_LIMIT} are made. Split the list to make the rest.
+          </Notice>
+        )}
+        {codes.some((c) => 'error' in c) && <Notice tone="warn">{codes.filter((c) => 'error' in c).length} line(s) are too long for a QR code and were skipped.</Notice>}
+      </div>
+      {good.length > 0 && (
+        <div>
+          <ul className="grid max-h-[360px] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+            {good.slice(0, BATCH_SHOWN).map((c, i) => (
+              <li key={i} className="border border-rule-2 p-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(c.svg)}`} alt={c.label} className="aspect-square w-full" />
+                <span className="block truncate text-[0.7rem]" title={c.data}>
+                  {c.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {good.length > BATCH_SHOWN && <p className="mt-1 text-[0.8rem] text-ink-3">The first {BATCH_SHOWN} are shown; the downloads have all {good.length}.</p>}
+        </div>
+      )}
+    </div>
+  );
+
+  return first ? (
+    <section className="mb-6 border-b border-rule pb-6" aria-label="Many QR codes at once">
+      <h2 className="label">Many QR codes at once</h2>
+      {body}
+    </section>
+  ) : (
     <details className="group mt-8 border-t border-rule pt-4">
       <summary className="label flex cursor-pointer list-none items-center gap-2 select-none">
         <span className="inline-block w-3 transition-transform group-open:rotate-90" aria-hidden="true">
@@ -626,67 +776,7 @@ function Batch({ style }: { style: QrStyle }) {
         </span>
         Make many QR codes at once
       </summary>
-      <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div>
-          <label htmlFor="qr-batch" className="label mb-1 block">
-            One link or text per line (up to 100)
-          </label>
-          <textarea id="qr-batch" className="field min-h-[180px] font-mono text-[0.85rem]" value={text} onChange={(e) => setText(e.target.value)} placeholder={'https://example.com/product-1\nhttps://example.com/product-2\nTable 3'} spellCheck={false} />
-          <p className="mt-1 text-[0.8rem] text-ink-3">Uses the colours, shape and logo chosen above. Each code is labelled with its text in the PDF.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn"
-              disabled={!good.length || busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const { pdfBlob } = await import('@/lib/qr/export');
-                  download(await pdfBlob(good.map((c) => ({ svg: c.svg, label: c.line }))), 'qr-codes.pdf');
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {busy ? 'Making PDF…' : good.length ? `Download ${good.length} as PDF` : 'Download as PDF'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={!good.length || busy}
-              onClick={async () => {
-                setBusy(true);
-                setMsg(null);
-                try {
-                  const { pngBlob } = await import('@/lib/qr/export');
-                  for (const [i, c] of good.entries()) {
-                    download(await pngBlob(c.svg, 1024), `qr-${String(i + 1).padStart(3, '0')}-${slugOf(c.line)}.png`);
-                    await new Promise((r) => setTimeout(r, 250));
-                  }
-                  setMsg('If only one file arrived, allow this site to download several files when the browser asks.');
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Download PNGs
-            </button>
-          </div>
-          {msg && <Notice>{msg}</Notice>}
-          {codes.some((c) => 'error' in c) && <Notice tone="warn">{codes.filter((c) => 'error' in c).length} line(s) are too long for a QR code and were skipped.</Notice>}
-        </div>
-        {good.length > 0 && (
-          <ul className="grid max-h-[340px] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
-            {good.map((c, i) => (
-              <li key={i} className="border border-rule-2 p-1">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(c.svg)}`} alt={c.line} className="aspect-square w-full" />
-                <span className="block truncate text-[0.7rem]">{c.line}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {body}
     </details>
   );
 }
