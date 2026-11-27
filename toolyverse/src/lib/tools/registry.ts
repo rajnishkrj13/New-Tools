@@ -175,7 +175,7 @@ export const CATEGORIES: Category[] = [
       {
         h2: 'Which GST tool for which job',
         list: [
-          'Tax on a price: [GST Calculator](/gst-calculator) adds or removes GST at 5, 12, 18 or 28% and splits it into CGST and SGST or IGST.',
+          'Tax on a price: [GST Calculator](/gst-calculator) adds or removes GST at 5%, 18%, 40% or any rate and splits it into CGST and SGST or IGST.',
           'Is this GSTIN real-looking: [GSTIN Checker](/gstin-validator) checks the format, state code, PAN and check digit, for many numbers at once.',
           'Bill a customer: [GST Invoice Maker](/gst-invoice-generator) builds a tax invoice with HSN/SAC, the right tax split and the amount in words.',
           'A year of returns into Excel: [GSTR-1 to Excel](/gstr1-to-excel) and [GSTR-3B to Excel](/gstr3b-to-excel) read the filed return PDFs from the portal.',
@@ -451,8 +451,39 @@ export const TOOLS: Tool[] = [
     steps: ['Add your PDF files (or drop them on the box).', 'Move them up or down until the order is right.', 'Press Merge and download the combined PDF.'],
     faqs: [
       { q: 'How many files can I merge?', a: 'As many as your device can hold in memory; dozens of ordinary PDFs are fine. The size limit per file is shown next to the box.' },
-      { q: 'Can I merge a password-protected PDF?', a: 'Remove the password first with the PDF editor (it asks for it when you open the file), then merge.' },
+      { q: 'Can I merge a password-protected PDF?', a: 'Remove the password first with [Unlock PDF](/unlock-pdf) (you need to know it), then merge.' },
       { q: 'Will links and form fields survive?', a: 'Form fields do. Bookmarks from the separate files are not combined into one table of contents.' },
+      { q: 'Can I merge JPG photos and PDFs together?', a: 'Yes. Add the pictures alongside the PDFs; each picture becomes a page at its place in the list.' },
+      { q: 'Does merging reduce the quality?', a: 'No. Pages are copied as they are, so text stays sharp and scans keep their resolution.' },
+      { q: 'How do I merge PDFs on my phone?', a: 'Open this page in Chrome or Safari, tap the box to pick the files, put them in order and tap Merge. The merged PDF is saved with your downloads.' },
+    ],
+    sections: [
+      {
+        h2: 'How to merge PDF files in the right order',
+        list: [
+          'Add the files: choose them all at once, or drop them on the box. You can add more before merging.',
+          'Set the order: move each file up or down. The first file in the list becomes the first pages of the result.',
+          'Add photos too: a JPG or PNG, such as a photo of a signed page, becomes a page of its own.',
+          'Merge and download: you get one PDF with every page, in the order you set.',
+        ],
+      },
+      {
+        h2: 'What people combine PDFs for',
+        list: [
+          'Applications and admissions: the form, ID proof, mark sheets and certificates as one upload.',
+          'Accounts and tax: a year of bank statements, purchase bills or GST returns in one file for your CA.',
+          'Office documents: a cover letter, quotation and terms sent as a single attachment.',
+          'Scans: pages scanned one at a time on a phone or printer, joined into one document.',
+          'Study material: chapter PDFs or class notes combined into one book.',
+        ],
+      },
+      {
+        h2: 'After merging',
+        body: [
+          'Open the result and check the order and page count. If it is too big to email or upload, make it smaller with [Compress PDF](/compress-pdf). To take a page out again, or to send only some pages, use [Split PDF](/split-pdf); to turn sideways pages upright, use [Rotate PDF](/rotate-pdf).',
+          'The files are joined in your browser and never uploaded, so salary slips, statements and ID documents stay on your device. There is no sign-up and no watermark.',
+        ],
+      },
     ],
     limits: { publicMb: 25, memberMb: 100 },
     related: ['split-pdf', 'compress-pdf', 'jpg-to-pdf', 'pdf-editor'],
@@ -472,6 +503,41 @@ export const TOOLS: Tool[] = [
     faqs: [
       { q: 'How do I take out just a few pages?', a: 'Choose "By page ranges", type the pages you want (for example 4-6) and leave "the pages not listed" unticked. You get one PDF with only those pages.' },
       { q: 'What does 9- mean?', a: 'From page 9 to the last page.' },
+      { q: 'Can I split a scanned PDF?', a: 'Yes. Scanned pages are split like any others. To make the parts smaller, run them through [Compress PDF](/compress-pdf) afterwards.' },
+      { q: 'How do I join the parts again?', a: 'Use [Merge PDF](/merge-pdf): add the parts in the order you want and download one file.' },
+      { q: 'Is it free and private?', a: 'Yes. The PDF is split in your browser and never uploaded. There is no sign-up and no watermark.' },
+    ],
+    sections: [
+      {
+        h2: 'Three ways to split a PDF',
+        table: {
+          head: ['Choose', 'You get', 'Example'],
+          rows: [
+            ['Every N pages', 'Equal parts of N pages each', 'A 30-page statement split every 10 pages gives three PDFs of 10 pages'],
+            ['Every page', 'One PDF per page', 'A set of certificates, each as its own file'],
+            ['Page ranges', 'One PDF for each range you type', '1-3, 4-8, 9- gives three PDFs; 9- means page 9 to the end'],
+          ],
+        },
+      },
+      {
+        h2: 'How to extract pages from a PDF',
+        list: [
+          'Open the PDF and choose “By page ranges”.',
+          'Type the pages to keep, for example 4-6.',
+          'Leave “the pages not listed” unticked, so only the pages you typed are saved.',
+          'Download: you get one PDF with just those pages. Several ranges come together in one ZIP.',
+        ],
+      },
+      {
+        h2: 'When splitting helps',
+        list: [
+          'Upload limits: a portal that takes 2 MB per file. Split a long scan into parts that fit, or keep only the pages it asks for.',
+          'Bank statements: take out the months a bank, landlord or visa office wants, and leave the rest out.',
+          'Sharing: send each customer only their own invoice from one long print-out.',
+          'Books and notes: one PDF per chapter for students or colleagues.',
+        ],
+        body: ['You see the list of files you will get before you download, with the pages in each. Nothing is changed inside the pages: text, scans and form fields stay exactly as they were.'],
+      },
     ],
     limits: { publicMb: 25, memberMb: 100 },
     related: ['merge-pdf', 'pdf-editor', 'compress-pdf'],
@@ -491,6 +557,41 @@ export const TOOLS: Tool[] = [
     faqs: [
       { q: 'Why did my file not get much smaller?', a: 'If the PDF has no photos, or they are already small, there is little to gain: text and vector drawings are already compact.' },
       { q: 'Does compression blur the text?', a: 'No. Only photos and scanned page images are reduced; real text is untouched.' },
+      { q: 'Can I compress a PDF to 100 KB or 200 KB?', a: 'Often, when most of the size is photos or scans: choose Strong. If it is still too big, keep only the pages that are needed with [Split PDF](/split-pdf), or scan again at a lower resolution.' },
+      { q: 'Is the compressed PDF still searchable?', a: 'Yes. Text stays real text, so you can still search, select and copy it, and it prints as sharp as before.' },
+      { q: 'Can I compress a password-protected PDF?', a: 'Remove the password first with [Unlock PDF](/unlock-pdf), compress it, and add a password again with [Protect PDF](/protect-pdf) if you need one.' },
+    ],
+    sections: [
+      {
+        h2: 'How much smaller will my PDF get?',
+        table: {
+          head: ['Kind of PDF', 'What to expect'],
+          rows: [
+            ['Scanned documents', 'Usually the biggest saving, often half the size or more, because every page is a photo'],
+            ['Phone photos saved as PDF', 'Large savings: phone photos have far more pixels than a page needs'],
+            ['Reports with charts and photos', 'A moderate saving: the photos shrink, while text and charts are already compact'],
+            ['Text-only PDFs (from Word, invoices)', 'Little or nothing: there is nothing heavy to reduce'],
+          ],
+        },
+      },
+      {
+        h2: 'Balanced or Strong?',
+        body: [
+          'Balanced redraws each photo at up to 1,600 pixels on its longer side, at JPEG quality 72%. On screen and in ordinary prints it looks the same as the original. Strong goes down to 1,000 pixels and quality 55%: what email attachments and upload limits usually need. Small print inside scanned pages can look softer, so zoom in on the result before you send it.',
+          'A photo that would not get smaller is left as it was, and the tool tells you how many photos it reduced and by how much the file shrank.',
+        ],
+      },
+      {
+        h2: 'Getting a PDF under an upload limit',
+        list: [
+          'Try Strong first: it gives the smallest file.',
+          'Send only what is asked for: take the needed pages out with [Split PDF](/split-pdf).',
+          'Scan smarter: 150 to 200 dpi in greyscale is plenty for documents; a 600 dpi colour scan is many times larger.',
+          'Phone photos: shrink them with [Compress Image](/compress-image), then make the PDF with [JPG to PDF](/jpg-to-pdf).',
+          'Several documents: [merge](/merge-pdf) them first and compress the merged file once.',
+        ],
+        body: ['The PDF is rewritten in your browser and never uploaded, so bank statements, ID proofs and contracts stay on your device. Text and layout are kept exactly; only the photos are re-encoded.'],
+      },
     ],
     limits: { publicMb: 25, memberMb: 150 },
     related: ['merge-pdf', 'compress-image', 'pdf-to-jpg'],
@@ -713,6 +814,44 @@ export const TOOLS: Tool[] = [
     faqs: [
       { q: 'Why can\'t it reach my target size?', a: 'A very large photo may need to be made smaller in pixels too. Turn on "Also reduce dimensions" or use Resize Image first.' },
       { q: 'Does it work for PNG?', a: 'Yes. PNGs with photos are saved as JPG or WebP to get small; screenshots and logos stay PNG.' },
+      { q: 'Is my photo uploaded anywhere?', a: 'No. It is compressed in your browser, so ID photos, signatures and documents never leave your device.' },
+      { q: 'Does compressing change the photo’s width and height?', a: 'Only if you tick “Also reduce dimensions”. Otherwise the pixels stay the same and only the JPG quality changes.' },
+      { q: 'Why does my photo look blurry after compressing?', a: 'The target was very small for the photo. Crop away empty background, reduce the dimensions, or allow a few more KB if the form permits.' },
+    ],
+    sections: [
+      {
+        h2: 'Common size limits for online forms',
+        list: [
+          'Photo: often 20 KB to 50 KB in JPG, sometimes up to 100 KB. One click away: [20 KB](/compress-image-to-20kb) and [50 KB](/compress-image-to-50kb).',
+          'Signature: often 10 KB to 20 KB, black or blue ink on a white background.',
+          'Certificates and documents: often 100 KB to 300 KB. See [100 KB](/compress-image-to-100kb) and [200 KB](/compress-image-to-200kb).',
+          'Read the form’s own notice: it may also fix the dimensions in pixels, the format and the background colour.',
+        ],
+      },
+      {
+        h2: 'To a size, or by quality?',
+        body: [
+          'To a size: type the limit, for example 50 KB, and the tool tries quality settings until the image fits just under it, keeping as much detail as it can. By quality: move the slider and watch the size change, which suits websites and email where there is no fixed limit.',
+          'A large phone photo may not reach a small target even at low quality. Tick “Also reduce dimensions”: fewer pixels make a far smaller file, and a form photo shown at a few centimetres still looks sharp.',
+        ],
+      },
+      {
+        h2: 'JPG, WebP or PNG?',
+        list: [
+          'JPG: the safe choice for forms and email; every website accepts it.',
+          'WebP: smaller than JPG at the same quality and good for your own website, but some government forms do not accept it.',
+          'PNG: right for screenshots and logos with sharp edges. Photos saved as PNG are many times larger.',
+        ],
+      },
+      {
+        h2: 'Tips for a sharp, small image',
+        list: [
+          'Crop first: cut away empty background with [Crop Image](/crop-image), so the KB go to the face or the text.',
+          'Match the pixels the form asks for, such as 200 × 230, with [Resize Image](/resize-image).',
+          'Start from the original: a photo forwarded on WhatsApp is already compressed and loses more detail when squeezed again.',
+          'Check the preview at full size before uploading, especially small text on documents.',
+        ],
+      },
     ],
     limits: { publicMb: 15, memberMb: 50 },
     related: ['resize-image', 'convert-image', 'crop-image'],
@@ -785,7 +924,12 @@ export const TOOLS: Tool[] = [
     h1: 'Convert image format',
     intro: 'Turn WebP downloads into JPG, screenshots into PNG, or photos into WebP for a faster website. Several images at once come back in one ZIP.',
     steps: ['Add one or more images.', 'Choose the format and quality.', 'Download.'],
-    faqs: [{ q: 'What happens to transparency when converting to JPG?', a: 'JPG has no transparency, so transparent areas are filled with the background colour you pick (white by default).' }, { q: 'Can I convert many images at once?', a: 'Yes. Add them all; they come back together in one ZIP file.' }],
+    faqs: [
+      { q: 'What happens to transparency when converting to JPG?', a: 'JPG has no transparency, so transparent areas are filled with the background colour you pick (white by default).' },
+      { q: 'Can I convert many images at once?', a: 'Yes. Add them all; they come back together in one ZIP file.' },
+      { q: 'Can I convert HEIC photos from an iPhone?', a: 'Photos you pick in Safari on an iPhone usually arrive as JPG already. On a computer, most browsers cannot open HEIC files; set the iPhone camera to “Most Compatible” to save photos as JPG.' },
+      { q: 'Are my images uploaded?', a: 'No. They are converted in your browser and never leave your device. There is no sign-up and no watermark.' },
+    ],
     limits: { publicMb: 15, memberMb: 50 },
     sections: [
       {
@@ -796,6 +940,35 @@ export const TOOLS: Tool[] = [
           'WebP: pictures for your own website; about a quarter smaller than JPG at the same quality.',
         ],
         body: ['The common conversions have their own pages: [PNG to JPG](/png-to-jpg), [JPG to PNG](/jpg-to-png) and [WebP to JPG](/webp-to-jpg). The converter also reads GIF, BMP and AVIF files.'],
+      },
+      {
+        h2: 'How to convert an image',
+        list: [
+          'Add images: one or many, as JPG, PNG, WebP, GIF, BMP or AVIF.',
+          'Choose the format: JPG, PNG or WebP, and the quality for JPG and WebP.',
+          'Transparent pictures: pick the colour that fills the see-through areas when converting to JPG.',
+          'Download: one image directly, several together in a ZIP.',
+        ],
+      },
+      {
+        h2: 'Common conversions and why people need them',
+        table: {
+          head: ['Conversion', 'Why'],
+          rows: [
+            ['WebP to JPG', 'Pictures saved from websites come as WebP, which many forms, older apps and print shops do not accept'],
+            ['PNG to JPG', 'Screenshots and scans saved as PNG are large; as JPG they are far smaller and accepted by every form'],
+            ['JPG to PNG', 'An app or website asks for PNG, or you want to edit a logo without adding more compression'],
+            ['JPG or PNG to WebP', 'Smaller pictures for your own website or online shop, so pages load faster'],
+            ['AVIF, GIF or BMP to JPG', 'Open newer or older formats anywhere, including on old phones and computers'],
+          ],
+        },
+      },
+      {
+        h2: 'Does converting lose quality?',
+        body: [
+          'JPG and WebP are compressed formats: at quality 90% and above, the difference is invisible in photos. Converting to PNG never loses detail, but a photo becomes a much larger file. Saving a JPG again and again slowly softens it, so keep your original and convert from that.',
+          'Need a smaller file rather than a different format? Use [Compress Image](/compress-image), which can aim at a size such as 50 KB. To change the pixels, use [Resize Image](/resize-image).',
+        ],
       },
     ],
     related: ['compress-image', 'resize-image', 'jpg-to-pdf'],
@@ -905,14 +1078,59 @@ export const TOOLS: Tool[] = [
     name: 'GST Calculator',
     short: 'Add or remove GST and split it into CGST, SGST or IGST',
     title: 'GST Calculator – Inclusive & Exclusive, CGST SGST IGST',
-    description: 'Calculate GST on any amount at 5%, 12%, 18%, 28% or a custom rate. Find the price before GST, and the CGST, SGST or IGST split. Free.',
+    description: 'Calculate GST at the new 5%, 18% and 40% rates or any other. Add or remove GST, find the price before tax and the CGST, SGST or IGST split. Free.',
     h1: 'GST calculator',
     intro: 'Enter an amount and a rate. "Add GST" gives the price including tax; "Remove GST" works backwards from a price that already includes it. The tax is split into CGST and SGST for a sale within your state, or shown as IGST for another state.',
     steps: ['Type the amount.', 'Choose the GST rate and whether to add or remove GST.', 'Read the tax, the total and the CGST/SGST or IGST split.'],
     faqs: [
       { q: 'How is GST removed from an inclusive price?', a: 'Price before GST = inclusive price × 100 ÷ (100 + rate). For ₹1,180 at 18%: 1,180 × 100 ÷ 118 = ₹1,000, so the GST is ₹180.' },
       { q: 'When is it CGST + SGST and when IGST?', a: 'A sale within the same state carries CGST and SGST, each half of the rate. A sale to another state, or an import, carries IGST at the full rate.' },
-      { q: 'Which rates can I use?', a: 'The usual slabs are listed, and you can type any other rate, for example 3% for gold or 0.25% for rough diamonds.' },
+      { q: 'Which rates can I use?', a: 'The main rates, 5%, 18% and 40%, are one click away. Type any other in the box: 3% for gold, 0.25% for rough diamonds, or 12% and 28% for bills from before 22 September 2025.' },
+      { q: 'What are the GST rates now?', a: 'Since 22 September 2025 the main rates are 5% and 18%, with 40% for luxury and sin goods. Some goods and services are exempt, and gold and jewellery have a special 3% rate. The old 12% and 28% slabs were removed for most goods.' },
+      { q: 'How do I calculate 18% GST on ₹500?', a: '500 × 18 ÷ 100 = ₹90, so the price with GST is ₹590. Within your state that is ₹45 CGST and ₹45 SGST; to another state it is ₹90 IGST.' },
+    ],
+    sections: [
+      {
+        h2: 'GST formulas, with examples',
+        table: {
+          head: ['To find', 'Formula', 'Example at 18%'],
+          rows: [
+            ['GST on a price', 'Price × rate ÷ 100', '₹1,000 × 18 ÷ 100 = ₹180'],
+            ['Price including GST', 'Price + GST', '₹1,000 + ₹180 = ₹1,180'],
+            ['Price before GST (remove GST)', 'Price with GST × 100 ÷ (100 + rate)', '₹1,180 × 100 ÷ 118 = ₹1,000'],
+            ['GST inside an inclusive price', 'Price with GST − price before GST', '₹1,180 − ₹1,000 = ₹180'],
+            ['CGST and SGST', 'Half the GST each', '₹90 CGST + ₹90 SGST'],
+            ['IGST', 'The whole GST', '₹180 IGST'],
+          ],
+        },
+      },
+      {
+        h2: 'GST rates from 22 September 2025',
+        table: {
+          head: ['Rate', 'Examples'],
+          rows: [
+            ['0% (exempt)', 'Fresh fruit, vegetables and milk; individual life and health insurance'],
+            ['5%', 'Many daily-use goods such as packaged food, soap and toothpaste; most medicines; hotel rooms up to ₹7,500 a night'],
+            ['18%', 'The standard rate: most services, and goods such as TVs, air conditioners, cement and small cars'],
+            ['40%', 'Luxury and sin goods, such as sugary aerated drinks, large cars and motorcycles above 350 cc'],
+            ['3% and 0.25%', 'Gold, silver and jewellery (3%); rough diamonds (0.25%)'],
+          ],
+        },
+        body: [
+          'These are examples only. The rate depends on the exact item, by its HSN code for goods or SAC code for services, so check the rate notifications on the CBIC website before you bill. Bills dated before 22 September 2025 could also carry 12% or 28%: to check one of those, type its rate in the box.',
+        ],
+      },
+      {
+        h2: 'Same state or another state?',
+        body: [
+          'The place of supply decides the kind of tax. When the seller and the place of supply are in the same state, the invoice shows CGST and SGST, each half the rate (UTGST instead of SGST in a union territory without its own legislature, such as Chandigarh or Ladakh). When they are in different states, the invoice shows IGST at the full rate. Imports carry IGST too.',
+          'For example, a shop in Delhi selling an item taxed at 18% to a customer in Delhi charges 9% CGST and 9% SGST; selling the same item to a business in Haryana it charges 18% IGST. The total tax is the same either way; only who collects it changes.',
+        ],
+      },
+      {
+        h2: 'Making the invoice',
+        body: ['Once the figures are right, the [GST Invoice Maker](/gst-invoice-generator) puts them on a proper tax invoice with the split worked out from the two states and the total in words. To check a customer’s GST number before billing, use the [GSTIN Checker](/gstin-validator).'],
+      },
     ],
     related: ['gst-invoice-generator', 'gstin-validator', 'number-to-words'],
     keywords: ['gst calculator', 'gst inclusive calculator', 'reverse gst calculator', 'cgst sgst calculator'],
@@ -931,6 +1149,60 @@ export const TOOLS: Tool[] = [
     faqs: [
       { q: 'Does a valid result mean the business is registered?', a: 'It means the number is correctly formed. Whether it is active, and the business name, can only be confirmed on the official GST portal\'s "Search Taxpayer" page.' },
       { q: 'What do the 15 characters mean?', a: 'Two digits for the state, the ten-character PAN, one character for the registration number under that PAN, the letter Z by default, and a check character.' },
+      { q: 'How do I find the PAN in a GSTIN?', a: 'Characters 3 to 12 are the PAN. In 27AAACA1234A1ZK the PAN is AAACA1234A.' },
+      { q: 'Can I check many GSTINs at once?', a: 'Yes. Paste a list, one per line, for example from your purchase register or a supplier list. Each is checked, and the valid ones can be copied together.' },
+      { q: 'Is the number I paste sent anywhere?', a: 'No. The check runs in your browser using the published GSTIN rules; nothing is looked up or stored.' },
+    ],
+    sections: [
+      {
+        h2: 'The GSTIN format, character by character',
+        table: {
+          head: ['Characters', 'Meaning', 'In 27AAACA1234A1ZK'],
+          rows: [
+            ['1–2', 'State code of the registration', '27: Maharashtra'],
+            ['3–12', 'PAN of the business or person', 'AAACA1234A'],
+            ['13', 'Registration number under the same PAN in that state: 1 to 9, then A to Z', '1: the first registration'],
+            ['14', 'The letter Z by default', 'Z'],
+            ['15', 'Check character, worked out from the first 14', 'K'],
+          ],
+        },
+        body: ['The example is made up but correctly formed. The fourth character of the PAN (the sixth of the GSTIN) tells the kind of taxpayer: C for a company, P for an individual, F for a firm or LLP, H for a HUF, T for a trust, A for an association of persons, and G for a government body.'],
+      },
+      {
+        h2: 'What this check can and cannot tell you',
+        list: [
+          'It catches: a wrong length, a state code that does not exist, a malformed PAN, and almost every single typing mistake, because the check character no longer matches.',
+          'It cannot tell: whether the registration is active, cancelled or suspended, or whose it is. Search the GSTIN on the GST portal (“Search Taxpayer”) for the legal name, status and return filing.',
+          'Before claiming input tax credit or paying a new supplier, do both: check the format here, then confirm on the portal. Invented GSTINs on fake invoices usually fail the check character.',
+        ],
+      },
+      {
+        h2: 'GST state codes',
+        table: {
+          head: ['Code', 'State or territory', 'Code', 'State or territory'],
+          rows: [
+            ['01', 'Jammu and Kashmir', '20', 'Jharkhand'],
+            ['02', 'Himachal Pradesh', '21', 'Odisha'],
+            ['03', 'Punjab', '22', 'Chhattisgarh'],
+            ['04', 'Chandigarh', '23', 'Madhya Pradesh'],
+            ['05', 'Uttarakhand', '24', 'Gujarat'],
+            ['06', 'Haryana', '26', 'Dadra and Nagar Haveli and Daman and Diu'],
+            ['07', 'Delhi', '27', 'Maharashtra'],
+            ['08', 'Rajasthan', '29', 'Karnataka'],
+            ['09', 'Uttar Pradesh', '30', 'Goa'],
+            ['10', 'Bihar', '31', 'Lakshadweep'],
+            ['11', 'Sikkim', '32', 'Kerala'],
+            ['12', 'Arunachal Pradesh', '33', 'Tamil Nadu'],
+            ['13', 'Nagaland', '34', 'Puducherry'],
+            ['14', 'Manipur', '35', 'Andaman and Nicobar Islands'],
+            ['15', 'Mizoram', '36', 'Telangana'],
+            ['16', 'Tripura', '37', 'Andhra Pradesh'],
+            ['17', 'Meghalaya', '38', 'Ladakh'],
+            ['18', 'Assam', '97', 'Other Territory'],
+            ['19', 'West Bengal', '99', 'Centre Jurisdiction'],
+          ],
+        },
+      },
     ],
     related: ['gst-calculator', 'gst-invoice-generator'],
     keywords: ['gstin validator', 'gst number check', 'verify gstin', 'gstin format'],
@@ -941,7 +1213,7 @@ export const TOOLS: Tool[] = [
     no: 15,
     name: 'GST Invoice Maker',
     short: 'Create a GST tax invoice and save it as PDF',
-    title: 'GST Invoice Generator – Free Tax Invoice Format, Print or PDF',
+    title: 'GST Invoice Generator – Free Tax Invoice, Print or PDF',
     description: 'Make a GST tax invoice with GSTIN, HSN, CGST/SGST or IGST, totals in words, and print or save it as PDF. Free, no sign-up needed.',
     h1: 'Make a GST invoice',
     intro: 'Fill in your business, the customer and the items. Tax is split into CGST and SGST or IGST automatically from the two states, and the total is written in words. Print it or save it as a PDF.',
@@ -949,6 +1221,52 @@ export const TOOLS: Tool[] = [
     faqs: [
       { q: 'Does the invoice include everything GST rules ask for?', a: 'It includes the supplier and recipient names, addresses and GSTINs, invoice number and date, place of supply, HSN/SAC, quantities, values, rates and tax amounts. Check any extra requirements for your trade with your accountant.' },
       { q: 'Are my business details saved?', a: 'Signed-in members can save their business details and invoice number sequence. Otherwise they are kept only in this browser.' },
+      { q: 'Can I make a GST invoice without a GSTIN?', a: 'No. Only a GST-registered business can issue a tax invoice and charge GST. Without registration, issue an ordinary bill or cash memo with no GST on it.' },
+      { q: 'How do I save the invoice as a PDF?', a: 'Press Print and choose “Save as PDF” as the printer. On an Android phone, the print screen has the same option; on an iPhone, share the print preview to Files.' },
+      { q: 'Is this an e-invoice?', a: 'No, it is a regular tax invoice. Businesses whose turnover has gone above ₹5 crore must also register B2B invoices on the government e-invoice portal (IRP), which returns an IRN and a QR code to print on them.' },
+    ],
+    sections: [
+      {
+        h2: 'What a GST tax invoice must show',
+        list: [
+          'Supplier: name, address and GSTIN.',
+          'Invoice number and date: a serial number of up to 16 characters, unique within the financial year. Letters, digits, hyphens and slashes are allowed, such as INV/2026-27/001.',
+          'Customer: name, address and GSTIN if registered. For an unregistered customer and an invoice of ₹50,000 or more, also the delivery address with the state.',
+          'Items: description, HSN code for goods or SAC code for services, quantity and unit, and value.',
+          'Tax: the taxable value, and the rate and amount of CGST and SGST, or of IGST.',
+          'Place of supply: the state, which also decides CGST + SGST or IGST.',
+          'Reverse charge: if the buyer pays the tax under reverse charge, say so; the Terms box is a good place.',
+          'Signature: of the supplier or an authorised person. Sign the printed copy, or the PDF with [Sign PDF](/sign-pdf).',
+        ],
+        body: ['This tool fills in all of these from what you type; the CGST and SGST or IGST split follows from the two states, and the total is written in words in lakh and crore.'],
+      },
+      {
+        h2: 'How many HSN digits?',
+        body: [
+          'With a turnover up to ₹5 crore in the previous year, invoices to registered customers must show at least a 4-digit HSN code. Above ₹5 crore, every invoice must show 6 digits. Services use SAC codes, which begin with 99, for example 998314 for IT design and development services.',
+        ],
+      },
+      {
+        h2: 'Tax invoice, bill of supply or e-invoice?',
+        table: {
+          head: ['Document', 'When it is used'],
+          rows: [
+            ['Tax invoice', 'A registered business selling taxable goods or services. This is what this tool makes.'],
+            ['Bill of supply', 'A composition taxpayer, or a sale of exempt goods or services: no GST is charged on it.'],
+            ['E-invoice (IRN and QR code)', 'Businesses above ₹5 crore turnover report each B2B invoice on the e-invoice portal before giving it to the customer.'],
+            ['Credit note or debit note', 'To correct an invoice already issued: a lower or a higher value or tax, or goods returned.'],
+          ],
+        },
+      },
+      {
+        h2: 'Good habits for GST billing',
+        list: [
+          'Numbering: start a new series each financial year, never skip or reuse a number, and keep cancelled invoices on record.',
+          'Copies: for goods, print three copies (original for the buyer, duplicate for the transporter, triplicate for you); for services, two.',
+          'Check the customer’s GSTIN with the [GSTIN Checker](/gstin-validator) before billing: a wrong GSTIN costs them the input tax credit.',
+          'Use the right rate: the main rates since 22 September 2025 are 5%, 18% and 40%; the [GST Calculator](/gst-calculator) helps with inclusive prices.',
+        ],
+      },
     ],
     features: [{ key: 'saveBusiness', label: 'Save business details', hint: 'Remember the seller details and next invoice number', default: true }],
     related: ['gst-calculator', 'gstin-validator', 'number-to-words'],
@@ -1039,7 +1357,7 @@ export const TOOLS: Tool[] = [
     no: 24,
     name: 'GSTR-2B Merger',
     short: 'Add GSTR-2B Excel downloads to one merged workbook',
-    title: 'GSTR-2B Merger – Combine GSTR-2B Excel Files (B2B, B2BA, CDNR)',
+    title: 'GSTR-2B Merger – Combine GSTR-2B Excel Files (B2B, CDNR)',
     description: 'Merge GSTR-2B Excel downloads from the GST portal into one workbook: B2B, B2BA and B2B-CDNR rows with state and month added. Refresh months safely. Free.',
     h1: 'Merge GSTR-2B Excel files',
     intro:
@@ -1068,7 +1386,7 @@ export const TOOLS: Tool[] = [
     name: 'GSTR-2B vs Purchase Register',
     short: 'Reconcile input tax credit: GSTR-2B against your books',
     title: 'GSTR-2B vs Purchase Register – ITC Reconciliation in Excel',
-    description: 'Reconcile GSTR-2B with your purchase register: matched, differing and missing invoices, supplier-wise ITC difference and an Excel report. Free, nothing uploaded.',
+    description: 'Reconcile GSTR-2B with your purchase register: matched, differing and missing invoices, supplier-wise ITC difference and Excel report. Free, nothing uploaded.',
     h1: 'GSTR-2B vs purchase register reconciliation',
     intro:
       'Check your input tax credit before you claim it. Add the GSTR-2B Excel or JSON files from the GST portal (any months, any of your GSTINs) and your purchase register from Tally, Busy, SAP or Excel. Every bill is matched with what your suppliers reported, even when the invoice number is written differently, and imports by their bill of entry. You see what matches, what differs and what is missing on either side, which bills are near the Section 16(4) time limit, and a message for each supplier to follow up. Both files are read in your browser and never uploaded.',

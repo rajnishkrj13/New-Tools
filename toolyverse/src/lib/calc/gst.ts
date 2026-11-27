@@ -1,6 +1,7 @@
 /** GST arithmetic and GSTIN checks. Amounts are rounded to paise only when shown. */
 
-export const GST_RATES = [0.25, 3, 5, 12, 18, 28];
+/** The main GST rates since 22 September 2025 (GST 2.0); any other rate can be typed. */
+export const GST_RATES = [5, 18, 40];
 
 export interface GstResult {
   base: number;

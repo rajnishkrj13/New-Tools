@@ -38,9 +38,10 @@ export default function GstCalculator() {
           <div>
             <span className="label mb-1 block">GST rate</span>
             <div className="flex flex-wrap items-center gap-2">
-              <Segmented label="GST rate" value={GST_RATES.map(String).includes(rate) ? rate : ''} onChange={setRate} options={[5, 12, 18, 28].map((x) => ({ value: String(x), label: `${x}%` }))} />
+              <Segmented label="GST rate" value={GST_RATES.map(String).includes(rate) ? rate : ''} onChange={setRate} options={GST_RATES.map((x) => ({ value: String(x), label: `${x}%` }))} />
               <input aria-label="Other rate (%)" className="field !min-h-10 !w-24" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
             </div>
+            <p className="mt-1.5 text-[0.82rem] text-ink-3">Since 22 September 2025 most goods and services are 5% or 18%, and luxury and sin goods 40%. Type any other rate: 3 for gold, or 12 or 28 for bills from before then.</p>
           </div>
           <div id="gst-mode" className="flex flex-wrap gap-3">
             <Segmented

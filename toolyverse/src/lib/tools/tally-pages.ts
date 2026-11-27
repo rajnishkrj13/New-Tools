@@ -148,7 +148,7 @@ export const TALLY_TOOLS: Tool[] = [
     name: 'Tally XML to Excel Converter',
     short: 'Open Tally XML exports as clean Excel sheets',
     title: 'Tally XML to Excel Converter – Vouchers, Ledgers, Reports',
-    description: 'Convert Tally XML to Excel: vouchers with every ledger line, bill-wise, cost centres, bank and stock details, plus ledger masters and reports, each on its own sheet.',
+    description: 'Convert Tally XML to Excel: vouchers with every ledger line, bill-wise, cost centres, bank and stock details, plus masters and reports, each on its own sheet.',
     h1: 'Tally XML to Excel converter',
     intro:
       'Tally exports data as XML, which is hard to read and impossible to sort. Open the file here and get an Excel workbook: one row per ledger line with the voucher date, type, number, references and narration, and separate sheets for bill-wise details, cost centres, bank details, stock lines and anything else the file holds. Nothing is dropped without a note saying so.',
@@ -306,7 +306,7 @@ export const TALLY_TOOLS: Tool[] = [
     name: 'Tally XML to XML Converter',
     short: 'Rename ledgers, change company or version in Tally XML',
     title: 'Tally XML Converter – Rename Ledgers, Change Company',
-    description: 'Convert Tally XML to Tally XML: rename ledgers and voucher types, change the company, remove IDs, filter vouchers and switch between TallyPrime and ERP 9 format.',
+    description: 'Convert Tally XML to Tally XML: rename ledgers and voucher types, change the company, remove IDs, filter vouchers, or switch TallyPrime and ERP 9 format.',
     h1: 'Tally XML to XML converter',
     intro:
       'Move vouchers between companies whose ledgers have different names, turn an export into a clean import file, or prepare a TallyPrime file for Tally.ERP 9. The vouchers themselves are carried over element by element, so stock lines, GST details and every other field stay as they were; only the changes you choose are made, and each one is counted.',
@@ -398,7 +398,7 @@ export const TALLY_TOOLS: Tool[] = [
     name: 'Tally XML Validator',
     short: 'Find errors in a Tally XML file before importing it',
     title: 'Tally XML Validator – Check XML Before Import',
-    description: 'Validate Tally XML before import: syntax, required tags, dates, voucher types, ledger names, debit and credit, allocations, duplicates. Line-by-line Excel report.',
+    description: 'Validate Tally XML before import: syntax, required tags, dates, voucher types, ledgers, debit and credit, allocations, duplicates. Line-by-line Excel report.',
     h1: 'Tally XML validator',
     intro:
       'Find out what Tally will refuse before you import. The validator reads the file line by line and reports broken XML, missing tags, vouchers that do not balance, bad dates and amounts, allocations that do not add up and duplicate numbers, each with its line number. Add an export of your Tally data to also catch ledgers that do not exist and vouchers already entered.',
@@ -452,7 +452,7 @@ export const TALLY_PAGES: Tool[] = [
     name: 'XML to Tally Converter',
     short: 'Turn XML from other software into Tally vouchers',
     title: 'XML to Tally Converter – Other Software XML into Tally',
-    description: 'Convert XML from billing, banking or other accounting software into Tally import XML. Match the fields to voucher columns, check balances and download for Tally.',
+    description: 'Convert XML from billing, banking or other accounting software into Tally import XML. Match fields to voucher columns, check balances, download for Tally.',
     h1: 'XML to Tally converter',
     intro:
       'Billing software, bank portals and other accounting programs often export XML that Tally cannot read. Upload it here: the repeating records become rows, you match their fields to date, ledger, debit and credit, and the tool writes vouchers in the XML Tally imports, checked and balanced.',
@@ -546,7 +546,7 @@ export const TALLY_PAGES: Tool[] = [
     name: 'Tally Voucher Export',
     short: 'Get vouchers out of Tally as Excel or XML',
     title: 'Tally Voucher Export – Vouchers to Excel or XML',
-    description: 'Export vouchers from Tally and pick what you need: by voucher type, financial year, number or ledger. Download them as Excel with every ledger line, or as clean XML.',
+    description: 'Export vouchers from Tally and pick what you need: by voucher type, year, number or ledger. Download them as Excel with every ledger line, or as clean XML.',
     h1: 'Export vouchers from Tally',
     intro:
       'Need last year’s payments in Excel for the auditor, or a set of journal entries to repeat in another company? Export the Day Book from Tally as XML, open it here, filter down to the vouchers you need, and download them as a spreadsheet with every ledger line, or as XML ready to import elsewhere.',

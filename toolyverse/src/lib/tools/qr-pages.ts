@@ -504,7 +504,7 @@ export const QR_PAGES: Tool[] = [
     name: 'UPI QR Code Generator',
     short: 'Payment QR for GPay, PhonePe, Paytm and BHIM',
     title: 'UPI QR Code Generator – Payment QR for Any UPI ID',
-    description: 'Create a UPI payment QR code from your UPI ID, with or without a fixed amount. Works with GPay, PhonePe, Paytm and BHIM. Print it for your shop or invoice. Free.',
+    description: 'Create a UPI payment QR code from your UPI ID, with or without a fixed amount. Works with GPay, PhonePe, Paytm and BHIM. Print it for your shop or bill. Free.',
     h1: 'UPI QR code generator for payments',
     intro:
       'Make a payment QR code from any UPI ID. Customers scan it with GPay, PhonePe, Paytm, BHIM or their bank app and the payment screen opens with your name already filled in, plus the amount if you set one. Print it for your shop counter, put it on invoices, or share it on WhatsApp.',
@@ -626,7 +626,7 @@ export const QR_PAGES: Tool[] = [
     name: 'Business QR Code Generator',
     short: 'QR codes for shops, restaurants and small businesses',
     title: 'Business QR Code Generator – Shops & Small Business',
-    description: 'QR codes for your business: contact card, UPI payments, WhatsApp orders, Google reviews, WiFi and menus. Add your logo and brand colours. Free for commercial use.',
+    description: 'QR codes for your business: contact card, UPI payments, WhatsApp orders, Google reviews, WiFi and menus. Add your logo and brand colours. Free for business use.',
     h1: 'QR codes for your business',
     intro:
       'One shop counter can do a lot with a few QR codes: take payments, get WhatsApp orders, collect Google reviews and share the WiFi. This page starts with a business contact card, which saves your shop name, phone, email, website, address and opening hours in one scan; switch the type to make the others.',
@@ -823,7 +823,7 @@ export const QR_PAGES: Tool[] = [
     name: 'PDF QR Code Generator',
     short: 'Share a PDF, brochure or document through a QR code',
     title: 'PDF QR Code Generator – QR Code for a PDF File',
-    description: 'Make a QR code that opens a PDF: brochure, catalogue, price list, certificate or notes. Share the PDF from Google Drive or your website and paste the link. Free.',
+    description: 'Make a QR code that opens a PDF: brochure, catalogue, price list or certificate. Share the PDF from Google Drive or your website and paste the link. Free.',
     h1: 'QR code for a PDF file',
     intro:
       'A QR code cannot contain a whole PDF (it holds a few kilobytes at most), but it can open one in a scan. Put your PDF online, for example in Google Drive, Dropbox or on your website, paste its share link here, and anyone who scans the code can view or download it.',

@@ -4,6 +4,7 @@ import { LANDING_PAGES } from '../src/lib/tools/landing-pages';
 import { QR_PAGES } from '../src/lib/tools/qr-pages';
 import { TALLY_PAGES } from '../src/lib/tools/tally-pages';
 import { isQrType } from '../src/lib/qr/payload';
+import { config as proxyConfig } from '../src/proxy';
 
 /** Every page search engines see is described well, and every link in the help text works. */
 
@@ -11,6 +12,18 @@ const pages = new Set(['/', '/about', '/privacy', '/terms', '/contact', '/signup
 const linksIn = (text: string) => [...text.matchAll(/\]\(([^)]+)\)/g)].map((m) => m[1]);
 const textOf = (o: { intro?: string; faqs?: { a: string }[]; sections?: { body?: string[]; list?: string[] }[] }) =>
   [o.intro ?? '', ...(o.faqs ?? []).map((f) => f.a), ...(o.sections ?? []).flatMap((s) => [...(s.body ?? []), ...(s.list ?? [])])].join('\n');
+
+describe('search results', () => {
+  it('keeps titles and descriptions short enough not to be cut off', () => {
+    const long = TOOLS.flatMap((t) => [...(t.title.length > 60 ? [`${t.slug} title ${t.title.length}`] : []), ...(t.description.length > 160 ? [`${t.slug} description ${t.description.length}`] : [])]);
+    expect(long).toEqual([]);
+  });
+
+  it('marks every Hindi page as Hindi for the whole document', () => {
+    const hindi = TOOLS.filter((t) => t.lang === 'hi').map((t) => `/${t.slug}`).sort();
+    expect([...proxyConfig.matcher].sort()).toEqual(hindi);
+  });
+});
 
 describe('tool and landing page catalogue', () => {
   it('gives every page its own address, number, title and description', () => {

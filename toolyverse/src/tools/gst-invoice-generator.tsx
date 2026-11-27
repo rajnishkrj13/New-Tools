@@ -170,7 +170,8 @@ export default function GstInvoiceGenerator(props: ToolProps) {
                 <input aria-label="Unit" placeholder="Unit" className="field col-span-1" value={it.unit} onChange={(e) => setItem(i, 'unit', e.target.value)} />
                 <input aria-label="Rate" placeholder="Rate â‚¹" inputMode="decimal" className="field col-span-1 text-right" value={it.rate} onChange={(e) => setItem(i, 'rate', e.target.value)} />
                 <select aria-label="GST %" className="field col-span-1" value={it.gst} onChange={(e) => setItem(i, 'gst', e.target.value)}>
-                  {['0', '0.25', '3', '5', '12', '18', '28'].map((g) => (
+                  {/* 5, 18 and 40 since 22 Sep 2025; 12 and 28 kept for notes against older bills. */}
+                  {['0', '0.25', '3', '5', '12', '18', '28', '40'].map((g) => (
                     <option key={g} value={g}>
                       {g}%
                     </option>

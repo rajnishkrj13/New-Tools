@@ -28,7 +28,7 @@ export const DOC_TOOLS: Tool[] = [
     updated: UPDATED,
     name: 'PDF to Word',
     short: 'Turn a PDF into an editable Word document',
-    title: 'Advanced PDF to Word Converter – Convert PDF to Editable DOCX',
+    title: 'PDF to Word Converter – Convert PDF to Editable DOCX',
     description: 'Convert PDF to editable Word (DOCX) with fonts, real Word tables, pictures, headers and columns kept. Scanned PDFs in English and Indian languages via OCR.',
     h1: 'PDF to Word converter',
     intro:
@@ -109,7 +109,7 @@ export const DOC_TOOLS: Tool[] = [
     name: 'PDF to Excel',
     short: 'Extract tables from a PDF into an Excel workbook',
     title: 'PDF to Excel Converter – Extract Tables from PDF to XLSX',
-    description: 'Extract tables from PDF to Excel with rows, columns and amounts intact: bank statements, invoices, ledgers, GST reports. Scans in Indian languages. Free, no upload.',
+    description: 'PDF tables to Excel with rows, columns and amounts intact: bank statements, invoices, ledgers, GST reports, even Indian-language scans. Free, no upload.',
     h1: 'PDF to Excel converter',
     intro:
       'Get the tables out of a PDF and into Excel with every value in its own cell: dates as dates, amounts as numbers, invoice numbers and GSTINs as text. Tables with and without borders are found, tables that run over several pages are joined, and totals and running balances are checked. Compare each table with the PDF side by side, correct anything before downloading, and keep your statements private: nothing is uploaded.',
